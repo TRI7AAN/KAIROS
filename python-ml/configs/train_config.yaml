@@ -1,0 +1,7 @@
+# Training config — placeholder keys only, no real values yet (Phase 0).
+# Populated in later phases; saved per-run for reproducibility.
+data: {}
+model: {}
+training: {}
+rollout: {}
+logging: {}
