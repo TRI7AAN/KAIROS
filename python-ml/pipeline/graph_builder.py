@@ -1,12 +1,12 @@
-"""Host-flow graph snapshot builder.
+"""Java graph-contract loader for PyTorch Geometric.
 
 Intended responsibility (deferred to later phases):
-  - Convert each time window of traffic observations into a host-flow graph
-    snapshot (hosts as nodes, flows as edges carrying feature vectors).
-  - Serialize ordered graph sequences with next-state labels to .pt files
-    (torch_geometric.data.Data per window).
-  - Spot-check graph output against known attack timestamps.
+  - Validate and deserialize ordered host-flow graph snapshots constructed by
+    java-engine.
+  - Convert nodes, edges, features, timestamps, and next-state labels into
+    torch_geometric.data.Data objects without rebuilding graph topology.
+  - Preserve the versioned wire contract for reproducible training/inference.
 
-TODO: implement in Phase 3 (graph construction).
+TODO: implement in Phase 11 (Java-Python serialization contract).
 """
-# TODO: implement in Phase 3
+# TODO: implement in Phase 11

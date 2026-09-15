@@ -1,0 +1,56 @@
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+
+# Editors and operating-system files
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# Logs and temporary files
+*.log
+.tools/
+tmp/
+temp/
+
+# C++ / CMake
+cpp-engine/build/
+cpp-engine/cmake-build-*/
+*.o
+*.obj
+*.a
+*.so
+*.dll
+*.dylib
+
+# Java / Maven
+java-engine/target/
+*.class
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Node / React
+react-ui/node_modules/
+react-ui/build/
+react-ui/coverage/
+
+# Downloaded datasets, generated models, and evaluation artifacts
+data/raw/*
+!data/raw/.gitkeep
+data/processed/*
+!data/processed/.gitkeep
+python-ml/weights/*
+!python-ml/weights/.gitkeep
+results/*
+!results/.gitkeep

@@ -1,0 +1,31 @@
+dataset: CSE-CIC-IDS2018
+source:
+  bucket: https://cse-cic-ids2018.s3.amazonaws.com/
+inventoried_on: 2026-09-16
+units: GiB values use 2^30 bytes
+
+summary:
+  selected_pcap_bytes: 179238266241
+  selected_pcap_gib: 166.93
+  smallest_full_day_gib: 37.17
+  decision: >-
+    Do not download automatically. Even the smallest matching capture is a
+    37.17 GiB compressed archive and needs additional extraction space.
+
+files:
+  - date: Wednesday-14-02-2018
+    pcap_object: Original Network Traffic and Log data/Wednesday-14-02-2018/pcap.zip
+    pcap_bytes: 39913353098
+    pcap_gib: 37.17
+  - date: Thursday-15-02-2018
+    pcap_object: Original Network Traffic and Log data/Thursday-15-02-2018/pcap.zip
+    pcap_bytes: 41283382768
+    pcap_gib: 38.45
+  - date: Wednesday-28-02-2018
+    pcap_object: Original Network Traffic and Log data/Wednesday-28-02-2018/pcap.zip
+    pcap_bytes: 53251694487
+    pcap_gib: 49.59
+  - date: Friday-02-03-2018
+    pcap_object: Original Network Traffic and Log data/Friday-02-03-2018/pcap.zip
+    pcap_bytes: 44789835888
+    pcap_gib: 41.71

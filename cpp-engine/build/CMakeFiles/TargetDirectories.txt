@@ -1,3 +1,0 @@
-/home/kali/Desktop/Prophesy/cpp-engine/build/CMakeFiles/feature_extractor.dir
-/home/kali/Desktop/Prophesy/cpp-engine/build/CMakeFiles/edit_cache.dir
-/home/kali/Desktop/Prophesy/cpp-engine/build/CMakeFiles/rebuild_cache.dir

@@ -1,13 +1,13 @@
-"""Flow-level feature extraction (CICFlowMeter-style NetFlow/IPFIX features).
+"""Validation helpers for canonical flow features received from Java.
 
 Intended responsibility (deferred to later phases):
-  - Parse raw CSV/flow records into per-flow records (IPs/ports, TCP flag
-    bitmask, protocol, bytes/packets per flow, duration, IAT mean/variance/
-    max, bidirectional ratios).
-  - Normalize headers, drop non-feature columns, cast dtypes, clip/drop
-    Infinity/NaN rows.
-  - Attach MITRE ATT&CK stage labels derived from published attack timelines.
+  - Define and validate the ordered CICFlowMeter-style feature schema consumed
+    by training and inference.
+  - Reject malformed, non-finite, or schema-incompatible records before tensor
+    conversion.
+  - Raw CSV parsing, normalization, windowing, label attachment, and graph
+    construction are owned by java-engine so there is one canonical pipeline.
 
-TODO: implement in Phase 2 (flow CSV parser + stage labels).
+TODO: implement alongside the serialization contract in Phase 11.
 """
-# TODO: implement in Phase 2
+# TODO: implement in Phase 11

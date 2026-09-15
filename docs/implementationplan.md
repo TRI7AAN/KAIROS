@@ -12,6 +12,27 @@ clear "done" state before moving on. Tackle one at a time.
 > fully offline; Gemini is a "bonus mode" for live demos with internet available
 > (Phase 47–49).
 
+## Progress
+
+- **Phase 0: complete.** Repository skeleton, manifests, architecture and
+  roadmap documentation, ignore rules, environment template, and service
+  ownership decisions are present.
+- **Phase 1: complete.** Clean C++17/CMake, Java/Maven Wrapper, Python
+  3.12/PyTorch/PyTorch Geometric, and Node/React builds are verified; the
+  offline environment template is present.
+- **Phase 2: complete.** Four complementary CIC-IDS2018 CSV attack days are
+  downloaded and verified by byte size, SHA-256, row count, and label
+  distribution. Attack windows and known source anomalies are versioned in the
+  dataset manifest.
+- **Phase 3: in progress.** The matching raw objects are inventoried: 166.93 GiB
+  compressed across four days, with the smallest full day at 37.17 GiB. Choose
+  a storage/bandwidth-bounded capture strategy before downloading.
+- **Phase 4: complete.** The dependency-free C++17 core parses classic PCAP
+  Ethernet/raw-IPv4 traffic, aggregates directional TCP/UDP 5-tuples, and
+  computes TTL, TCP-window, fragmentation, retransmission, and payload moments.
+  A sanitizer-enabled deterministic synthetic-PCAP smoke test passes.
+- **Phase 5: next.** Add the per-source port-scan signature detector.
+
 ---
 
 **Phase 0 — Monorepo skeleton + README.** Create the 4-layer folder structure (cpp-engine/, java-engine/, python-ml/, react-ui/), stub files with docstrings only, populated dependency manifests (CMakeLists.txt, pom.xml, requirements.txt, package.json), .gitignore, and a README with full research writeup + architecture diagram.

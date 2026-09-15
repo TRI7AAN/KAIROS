@@ -9,10 +9,10 @@ inter-service communication contracts. It mirrors the relevant sections of
 | Layer     | Language | Role |
 |-----------|----------|------|
 | cpp-engine | C++     | High-throughput packet-level feature extraction (TTL variance, TCP window size, frag flags, retransmission counts, port-scan signature detection). Per-packet loops over PCAPs benefit from native speed and direct memory access. |
-| java-engine | Java   | Base orchestration: ingestion service, windowing, graph construction, REST API server; JNI/JNA bridge to cpp-engine; REST client to python-ml service; Gemini narrative service via the Google Gen AI Java SDK. |
-| python-ml  | Python | GNN encoder (GraphSAGE/GAT) + Temporal Transformer dynamics model + K-step autoregressive rollout + forecast heads (sigmoid infiltration probability, softmax MITRE stage) + SHAP explainability via distilled surrogate. Exposed as a Flask REST service. |
-| react-ui   | React  | Dashboard consuming the java-engine REST API: probability timeline, flagged flows table, stage annotations, Gemini narrative panel. |
-| Gemini API | (via java-engine) | Natural-language SOC analyst briefing from the structured ML output. Human-facing layer; never a replacement for SHAP/attention explainability. |
+| java-engine | Java   | Canonical ingestion and orchestration owner: CSV parsing, packet-feature merge, windowing, attack-stage labels, graph construction, public REST API, C++ bridge, Python client, and offline narrative generation. |
+| python-ml  | Python | Deserializes the versioned Java graph contract into PyTorch Geometric objects; owns the GNN encoder, Temporal Transformer dynamics, K-step rollout, forecast heads, and SHAP/attention explainability. Exposed as a private Flask inference service. |
+| react-ui   | React  | Dashboard consuming Java's public `/forecast` API: upload, probability timeline, flagged flows, stage annotations, and narrative panel. |
+| Gemini API | (optional, via java-engine) | Enhanced SOC narrative available only in explicit online mode. The default local narrative keeps the complete demo offline. |
 
 ## Architecture Diagram
 
@@ -55,15 +55,15 @@ Raw PCAP / CSV
 [JSON response]  probability + predicted stage + SHAP features
       |
       v
-[Java Narrative Service]  -- Gemini API (Google Gen AI Java SDK)
-      |                        structured output -> natural-language
-      |                        SOC analyst briefing (human-facing layer)
+[Java Narrative Service]  -- local rule-based generator by default
+      |                        optional Gemini enhancement in online mode
+      |                        structured output -> SOC analyst briefing
       v
 [React Dashboard]  -- react-ui
       +-- Probability Timeline   (time series + alert threshold line)
       +-- Flagged Flows Table    (top-N per alerted window, from SHAP)
       +-- Stage Annotations      (color-coded by predicted MITRE stage)
-      +-- Narrative Panel        (Gemini-generated briefing)
+      +-- Narrative Panel        (local or Gemini briefing, mode-indicated)
 ```
 
 ## Inter-Service Communication
@@ -79,16 +79,23 @@ Raw PCAP / CSV
 
 ### Java <-> Python (python-ml)
 - **Mechanism:** HTTP REST. Java's `PythonMlClient` (OkHttp3) POSTs the
-  per-window feature tensor to the python-ml Flask service.
+  versioned per-window host-flow graph snapshots to the python-ml Flask service.
+- **Ownership:** Java constructs graph topology and attaches timeline-derived
+  labels. Python validates/deserializes that contract into PyTorch Geometric
+  objects; it does not independently reconstruct graphs from raw traffic.
 - **Endpoint (deferred to Phase 3/4):**
   - `POST /predict` — request body carries the feature tensor (per-window
     graph snapshot); response body returns `{probability, predicted_stage,
     shap_features}` as JSON.
 
-### Java <-> Gemini API
-- **Mechanism:** Google Gen AI Java SDK from the `GeminiNarrativeService`.
-- **Behavior (deferred to Phase 5):** builds a structured prompt from the
-  python-ml response (probability, stage, top SHAP features) and returns a
-  natural-language SOC analyst briefing. This output is rendered in the
-  React dashboard's NarrativePanel; it supplements, and never replaces, the
-  mandatory SHAP/attention explainability required by the problem statement.
+### React <-> Java (public API)
+- **Endpoint:** `POST /forecast` accepts a PCAP or CSV upload and returns the
+  complete timeline, stage, explanation, flagged-flow, and narrative response.
+- The Python `/predict` endpoint is internal and is never called by the browser.
+
+### Java narrative modes
+- **Offline default:** a local deterministic template converts structured
+  predictions into a SOC briefing without making a network call.
+- **Optional online mode:** when `ONLINE_MODE=true` and `GEMINI_API_KEY` is
+  present, `GeminiNarrativeService` may enrich the briefing through the Google
+  Gen AI Java SDK. It supplements, and never replaces, SHAP/attention output.

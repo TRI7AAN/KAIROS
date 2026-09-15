@@ -97,13 +97,14 @@ Raw PCAP / CSV
 
 ## Datasets
 
-**CSE-CIC-IDS2018 (primary training data)** — registry.opendata.aws/cse-cic-ids2018. Ten days of labeled enterprise-network traffic (brute-force, DoS/DDoS, web attacks, botnet, infiltration) with 80+ CICFlowMeter flow features per record and published per-day attack timelines. Pull the processed CSVs with:
+**CSE-CIC-IDS2018 (primary training data)** — registry.opendata.aws/cse-cic-ids2018. Ten days of labeled enterprise-network traffic (brute-force, DoS/DDoS, web attacks, botnet, infiltration) with 80+ CICFlowMeter flow features per record and published per-day attack timelines. Download and verify the selected four-day slice with:
 
 ```bash
-aws s3 sync --no-sign-request s3://cse-cic-ids2018/ data/raw/ --exclude "*" --include "*.csv"
+./scripts/download_cic_ids_2018.sh
 ```
 
-Verify file integrity and row counts after sync.
+The versioned manifest records exact object sizes, SHA-256 checksums, row counts,
+label counts, attack windows, and known source anomalies.
 
 **CTU-13 (zero-shot generalization holdout)** — stratosphereips.org/datasets-ctu13. Thirteen real botnet-capture scenarios (Neris, Rbot, Virut families). Never used in training; used only for frozen-model inference and generalization-gap analysis. Download per scenario from the dataset page.
 
@@ -126,20 +127,20 @@ network-world-model/
 │   └── src/main/java/com/networkwm/
 │       ├── Application.java          # Spring Boot entrypoint stub
 │       ├── ingestion/
-│       │   └── IngestionService.java     # windowing + graph build stub
+│       │   └── IngestionService.java     # CSV ingestion, windowing + graph build stub
 │       ├── bridge/
 │       │   ├── CppBridge.java             # JNI/JNA bridge to cpp-engine stub
 │       │   └── PythonMlClient.java        # REST client to python-ml stub
 │       ├── narrative/
 │       │   └── GeminiNarrativeService.java # Gemini Java SDK call stub
 │       └── api/
-│           └── ForecastController.java     # /predict REST controller stub
+│           └── ForecastController.java     # public /forecast REST controller stub
 ├── python-ml/                   # Python GNN/Transformer world model service
 │   ├── requirements.txt         # pandas, numpy, sklearn, torch, pyg, shap, flask, ...
 │   ├── app.py                   # Flask entrypoint + /predict route stub
 │   ├── pipeline/
-│   │   ├── extract_flow.py          # flow-level feature extraction stub
-│   │   └── graph_builder.py         # per-window graph snapshot builder stub
+│   │   ├── extract_flow.py          # feature-schema validation stub
+│   │   └── graph_builder.py         # Java graph-to-PyG loader stub
 │   ├── model/
 │   │   ├── encoder_gnn.py           # GraphSAGE/GAT encoder stub
 │   │   ├── dynamics_transformer.py  # temporal dynamics model stub
@@ -168,14 +169,38 @@ network-world-model/
 │       └── .gitkeep
 ├── data/
 │   ├── raw/                     # raw inputs (gitignored, .gitkeep kept)
-│   └── processed/               # parsed outputs (gitignored, .gitkeep kept)
+│   ├── processed/               # parsed outputs (gitignored, .gitkeep kept)
+│   ├── cic_ids_2018_manifest.yaml # verified selected-day metadata
+│   └── cic_ids_2018_pcap_inventory.yaml # raw-capture storage inventory
 ├── results/                     # benchmark artifacts (gitignored, .gitkeep kept)
 ├── docs/
 │   ├── architecture.md          # standalone architecture + inter-service reference
 │   └── implementationplan.md    # canonical 65-phase deliverable list
+├── scripts/
+│   └── download_cic_ids_2018.sh # resumable, checksum-verifying downloader
 ├── .gitignore                   # C++/Java/Python/Node/data/weights/results/.env excludes
 └── README.md                    # this file
 ```
+
+## Development setup
+
+Use Linux or WSL with Java 17+ and Python 3.12. Select the Node version from
+`.node-version` using your preferred version manager. CMake is installed in the
+Python environment, and Maven is supplied by the checked-in wrapper.
+
+```bash
+python3 -m venv .venv
+.venv/bin/pip install -r python-ml/requirements-dev.txt
+
+.venv/bin/cmake -S cpp-engine -B cpp-engine/cmake-build-local
+.venv/bin/cmake --build cpp-engine/cmake-build-local
+
+(cd java-engine && ./mvnw test)
+(cd react-ui && npm ci && npm run build)
+```
+
+The first dependency installation requires internet access. Runtime inference
+and the complete demonstration must work offline when `ONLINE_MODE=false`.
 
 ## Full Project Roadmap
 
@@ -327,11 +352,37 @@ Secrets live in a local `.env` file and are never committed. Copy
 `.env.example` to `.env` and fill in the values:
 
 ```
+ONLINE_MODE=false
 GEMINI_API_KEY=
 ```
 
+The Java service owns CSV/PCAP ingestion, time-window aggregation, attack-stage
+label attachment, and host-flow graph construction. Python receives the
+versioned graph snapshot contract, converts it to PyTorch Geometric objects,
+and owns training and inference. The browser calls Java at `POST /forecast`;
+Java calls the private Python ML endpoint at `POST /predict`.
+
 ## Current Status
 
-Phase 1 complete — all four toolchains (C++/CMake, Java/Maven, Python/venv, Node/React)
-verified and building/compiling cleanly. Gemini API key placeholder
-provisioned via .env.example. Next: Phase 2 (CIC-IDS2018 acquisition).
+Phase 0 complete - the monorepo skeleton, dependency manifests, architecture,
+roadmap, ignore rules, environment template, and service-boundary decisions are
+in place.
+
+Phase 1 complete - clean C++17/CMake, Java 21/Maven Wrapper, Python 3.12 with
+PyTorch/PyTorch Geometric, and Node 24/React builds have been verified. The
+offline environment template is present.
+
+Phase 2 complete - four complementary CIC-IDS2018 attack days (brute force,
+DoS, infiltration, and botnet) are downloaded and verified by exact byte size,
+SHA-256, row count, and label distribution. Their attack windows and source-data
+anomalies are recorded in the manifest.
+
+Phase 3 in progress - the matching raw PCAP objects are inventoried. The four
+compressed captures total 166.93 GiB and the smallest full day is 37.17 GiB, so
+the download is intentionally waiting for an explicit storage/bandwidth choice.
+
+Phase 4 complete - the C++17 extractor now parses classic PCAP Ethernet and
+raw-IPv4 packets, groups directional TCP/UDP 5-tuples, and calculates TTL
+mean/variance, TCP-window trend, fragment count, retransmission count, and
+payload mean/stddev/skew. Its deterministic sanitizer-enabled smoke test passes.
+Work stops here before Phase 5 as planned.

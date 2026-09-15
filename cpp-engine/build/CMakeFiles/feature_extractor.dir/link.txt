@@ -1,2 +1,0 @@
-/usr/bin/ar qc libfeature_extractor.a CMakeFiles/feature_extractor.dir/src/feature_extractor.cpp.o
-/usr/bin/ranlib libfeature_extractor.a

@@ -1,0 +1,88 @@
+dataset: CSE-CIC-IDS2018
+source:
+  dataset_page: https://www.unb.ca/cic/datasets/ids-2018.html
+  bucket: https://cse-cic-ids2018.s3.amazonaws.com/
+  prefix: Processed Traffic Data for ML Algorithms/
+verified_on: 2026-09-16
+row_count_excludes_header: true
+
+selection:
+  rationale: >-
+    Four complementary attack days covering brute force, denial of service,
+    infiltration, and botnet behavior while keeping the initial download near
+    1.21 GiB. DDoS and web-attack days remain available for later expansion.
+
+files:
+  - file: Wednesday-14-02-2018_TrafficForML_CICFlowMeter.csv
+    family: brute_force
+    bytes: 358223333
+    sha256: acff8bc61376ee031d80878ee6099e0b1a87a1bd711d8068298421418c9f8147
+    rows: 1048575
+    columns: 80
+    labels:
+      Benign: 667626
+      FTP-BruteForce: 193360
+      SSH-Bruteforce: 187589
+    attack_windows:
+      - attack: FTP-BruteForce
+        start: "10:32"
+        finish: "12:09"
+      - attack: SSH-Bruteforce
+        start: "14:01"
+        finish: "15:31"
+
+  - file: Thursday-15-02-2018_TrafficForML_CICFlowMeter.csv
+    family: denial_of_service
+    bytes: 375945899
+    sha256: fa2947a8256d81ee9103ae16139d62d0e17aa23e696ee80d9e76fb51c01c9c4b
+    rows: 1048575
+    columns: 80
+    labels:
+      Benign: 996077
+      DoS attacks-GoldenEye: 41508
+      DoS attacks-Slowloris: 10990
+    attack_windows:
+      - attack: DoS-GoldenEye
+        start: "09:26"
+        finish: "10:09"
+      - attack: DoS-Slowloris
+        start: "10:59"
+        finish: "11:40"
+
+  - file: Wednesday-28-02-2018_TrafficForML_CICFlowMeter.csv
+    family: infiltration
+    bytes: 209249758
+    sha256: f15e2a12304446058a0186c8ad67de2bd15735a9ba5c70c9a1f4c4242ab06771
+    rows: 613104
+    columns: 80
+    labels:
+      Benign: 544200
+      Infilteration: 68871
+      Label: 33
+    attack_windows:
+      - attack: Infiltration
+        start: "10:50"
+        finish: "12:05"
+      - attack: Infiltration
+        start: "13:42"
+        finish: "14:40"
+    known_anomalies:
+      - Normalize the raw label "Infilteration" to "Infiltration".
+      - Drop 33 repeated header rows whose label value is "Label".
+
+  - file: Friday-02-03-2018_TrafficForML_CICFlowMeter.csv
+    family: botnet
+    bytes: 352368373
+    sha256: d96f38e7496aba83475031e6fb8c6fdf1abf6aa1b71325a917798f3c7de93de1
+    rows: 1048575
+    columns: 80
+    labels:
+      Benign: 762384
+      Bot: 286191
+    attack_windows:
+      - attack: Bot
+        start: "10:11"
+        finish: "11:34"
+      - attack: Bot
+        start: "14:24"
+        finish: "15:55"
