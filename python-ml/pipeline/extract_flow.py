@@ -1,13 +1,25 @@
-"""Validation helpers for canonical flow features received from Java.
+"""Validation helpers for canonical finite feature vectors from Java."""
 
-Intended responsibility (deferred to later phases):
-  - Define and validate the ordered CICFlowMeter-style feature schema consumed
-    by training and inference.
-  - Reject malformed, non-finite, or schema-incompatible records before tensor
-    conversion.
-  - Raw CSV parsing, normalization, windowing, label attachment, and graph
-    construction are owned by java-engine so there is one canonical pipeline.
+from __future__ import annotations
 
-TODO: implement alongside the serialization contract in Phase 11.
-"""
-# TODO: implement in Phase 11
+import math
+from typing import Mapping, Sequence
+
+
+class FeatureValidationError(ValueError):
+    """Raised when a graph feature vector violates its declared schema."""
+
+
+def validate_feature_map(
+    features: Mapping[str, float],
+    schema: Sequence[str],
+) -> tuple[float, ...]:
+    """Return a schema-ordered vector, filling absent declared values with zero."""
+    undeclared = set(features) - set(schema)
+    if undeclared:
+        raise FeatureValidationError(
+            f"undeclared features: {sorted(undeclared)}")
+    vector = tuple(float(features.get(name, 0.0)) for name in schema)
+    if not all(math.isfinite(value) for value in vector):
+        raise FeatureValidationError("feature values must be finite")
+    return vector

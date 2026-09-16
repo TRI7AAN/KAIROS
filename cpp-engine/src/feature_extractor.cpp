@@ -6,6 +6,7 @@
 #include <fstream>
 #include <iomanip>
 #include <map>
+#include <limits>
 #include <set>
 #include <sstream>
 #include <stdexcept>
@@ -72,6 +73,8 @@ struct FragmentKey {
 
 struct RunningAggregate {
     std::uint64_t packet_count{};
+    std::uint64_t first_seen_epoch_micros{};
+    std::uint64_t last_seen_epoch_micros{};
     double ttl_sum{};
     double ttl_square_sum{};
     std::uint64_t fragment_count{};
@@ -94,8 +97,15 @@ struct RunningAggregate {
              bool is_tcp,
              std::uint16_t tcp_window,
              std::uint32_t tcp_sequence,
-             std::uint32_t sequence_span) {
+             std::uint32_t sequence_span,
+             std::uint64_t timestamp_micros) {
         ++packet_count;
+        if (first_seen_epoch_micros == 0U ||
+            timestamp_micros < first_seen_epoch_micros) {
+            first_seen_epoch_micros = timestamp_micros;
+        }
+        last_seen_epoch_micros = std::max(last_seen_epoch_micros, timestamp_micros);
+
         const double ttl_value = ttl;
         ttl_sum += ttl_value;
         ttl_square_sum += ttl_value * ttl_value;
@@ -130,6 +140,8 @@ FlowFeatures finish(const FlowKey& key, const RunningAggregate& aggregate) {
     FlowFeatures result;
     result.key = key;
     result.packet_count = aggregate.packet_count;
+    result.first_seen_epoch_micros = aggregate.first_seen_epoch_micros;
+    result.last_seen_epoch_micros = aggregate.last_seen_epoch_micros;
     result.fragment_count = aggregate.fragment_count;
     result.retransmission_count = aggregate.retransmission_count;
     result.truncated_packet_count = aggregate.truncated_packet_count;
@@ -279,6 +291,8 @@ void PortScanDetector::reset() {
 
 struct FeatureExtractor::Impl {
     std::ifstream stream;
+    bool nanosecond_timestamps{};
+    std::vector<double> interface_timestamp_units_per_second;
     bool little_endian{true};
     std::uint32_t link_type{};
     bool pcapng{};
@@ -290,7 +304,8 @@ struct FeatureExtractor::Impl {
 
     bool read_next_pcapng_packet(std::vector<std::uint8_t>& packet,
                                  std::uint32_t& original_size,
-                                 std::uint32_t& packet_link_type) {
+                                 std::uint32_t& packet_link_type,
+                                 std::uint64_t& timestamp_micros) {
         while (true) {
             std::array<std::uint8_t, 8> block_header{};
             stream.read(reinterpret_cast<char*>(block_header.data()),
@@ -347,6 +362,7 @@ struct FeatureExtractor::Impl {
                 }
                 interface_link_types.clear();
                 interface_snap_lengths.clear();
+                interface_timestamp_units_per_second.clear();
                 continue;
             }
 
@@ -378,6 +394,33 @@ struct FeatureExtractor::Impl {
                 interface_link_types.push_back(read_u16(body.data(), little_endian));
                 interface_snap_lengths.push_back(
                     read_u32(body.data() + 4U, little_endian));
+                double timestamp_units = 1.0e6;
+                std::size_t option_offset = 8U;
+                const std::size_t options_end = body.size() - 4U;
+                while (option_offset + 4U <= options_end) {
+                    const std::uint16_t option_code =
+                        read_u16(body.data() + option_offset, little_endian);
+                    const std::uint16_t option_size =
+                        read_u16(body.data() + option_offset + 2U, little_endian);
+                    option_offset += 4U;
+                    if (option_code == 0U) {
+                        break;
+                    }
+                    if (option_offset + option_size > options_end) {
+                        error = "Invalid PCAPNG interface option";
+                        reached_eof = true;
+                        return false;
+                    }
+                    if (option_code == 9U && option_size >= 1U) {
+                        const std::uint8_t resolution = body[option_offset];
+                        const int exponent = resolution & 0x7FU;
+                        timestamp_units = (resolution & 0x80U) != 0U
+                            ? std::pow(2.0, exponent)
+                            : std::pow(10.0, exponent);
+                    }
+                    option_offset += (option_size + 3U) & ~std::size_t{3U};
+                }
+                interface_timestamp_units_per_second.push_back(timestamp_units);
                 continue;
             }
 
@@ -393,11 +436,24 @@ struct FeatureExtractor::Impl {
                     read_u32(body.data() + 12U, little_endian);
                 original_size = read_u32(body.data() + 16U, little_endian);
                 if (interface_id >= interface_link_types.size() ||
+                    interface_id >= interface_timestamp_units_per_second.size() ||
                     captured_size > body.size() - 24U) {
                     error = "Invalid PCAPNG enhanced packet metadata";
                     reached_eof = true;
                     return false;
                 }
+                const std::uint64_t raw_timestamp =
+                    (static_cast<std::uint64_t>(
+                         read_u32(body.data() + 4U, little_endian)) << 32U) |
+                    read_u32(body.data() + 8U, little_endian);
+                const long double timestamp_value =
+                    static_cast<long double>(raw_timestamp) * 1.0e6L /
+                    interface_timestamp_units_per_second[interface_id];
+                timestamp_micros = timestamp_value >=
+                        static_cast<long double>(
+                            std::numeric_limits<std::uint64_t>::max())
+                    ? std::numeric_limits<std::uint64_t>::max()
+                    : static_cast<std::uint64_t>(timestamp_value);
                 packet_link_type = interface_link_types[interface_id];
                 packet.assign(body.begin() + 20,
                               body.begin() + 20 + captured_size);
@@ -419,6 +475,7 @@ struct FeatureExtractor::Impl {
                     return false;
                 }
                 packet_link_type = interface_link_types.front();
+                timestamp_micros = 0U;
                 packet.assign(body.begin() + 4,
                               body.begin() + 4 + captured_size);
                 return true;
@@ -429,6 +486,7 @@ struct FeatureExtractor::Impl {
     bool parse_packet(const std::vector<std::uint8_t>& packet,
                       std::uint32_t packet_link_type,
                       bool capture_truncated,
+                      std::uint64_t timestamp_micros,
                       std::map<FlowKey, RunningAggregate>& flows,
                       PortScanDetector& scan_detector) {
         std::size_t ip_offset = 0;
@@ -503,7 +561,7 @@ struct FeatureExtractor::Impl {
             }
             key = existing_flow->second;
             flows[key].add(ip[8], true, payload_size, capture_truncated,
-                           false, 0U, 0U, 0U);
+                           false, 0U, 0U, 0U, timestamp_micros);
             if (!more_fragments) {
                 fragment_flows.erase(existing_flow);
             }
@@ -565,7 +623,8 @@ struct FeatureExtractor::Impl {
             fragment_flows[fragment_key] = key;
         }
         flows[key].add(ip[8], fragmented, payload_size, capture_truncated,
-                       is_tcp, tcp_window, tcp_sequence, sequence_span);
+                       is_tcp, tcp_window, tcp_sequence, sequence_span,
+                       timestamp_micros);
         scan_detector.observe(key);
         return true;
     }
@@ -583,6 +642,8 @@ bool FeatureExtractor::open(const std::string& pcap_path) {
     impl_->reached_eof = true;
     impl_->link_type = 0U;
     impl_->pcapng = false;
+    impl_->nanosecond_timestamps = false;
+    impl_->interface_timestamp_units_per_second.clear();
     impl_->interface_link_types.clear();
     impl_->interface_snap_lengths.clear();
     impl_->fragment_flows.clear();
@@ -636,6 +697,10 @@ bool FeatureExtractor::open(const std::string& pcap_path) {
         impl_->error = "Unsupported capture format: expected classic PCAP";
         return false;
     }
+    impl_->nanosecond_timestamps =
+        magic == std::array<std::uint8_t, 4>{0x4D, 0x3C, 0xB2, 0xA1} ||
+        magic == std::array<std::uint8_t, 4>{0xA1, 0xB2, 0x3C, 0x4D};
+
 
     impl_->link_type = read_u32(header.data() + 20U, impl_->little_endian);
     if (impl_->link_type != kEthernetLinkType &&
@@ -666,9 +731,10 @@ ExtractionBatch FeatureExtractor::extract_next_batch_analysis(
         std::uint32_t original_size = 0U;
         std::uint32_t packet_link_type = impl_->link_type;
 
+        std::uint64_t timestamp_micros = 0U;
         if (impl_->pcapng) {
             if (!impl_->read_next_pcapng_packet(
-                    packet, original_size, packet_link_type)) {
+                    packet, original_size, packet_link_type, timestamp_micros)) {
                 break;
             }
             captured_size = static_cast<std::uint32_t>(packet.size());
@@ -690,6 +756,13 @@ ExtractionBatch FeatureExtractor::extract_next_batch_analysis(
             }
             captured_size =
                 read_u32(record_header.data() + 8U, impl_->little_endian);
+            const std::uint64_t seconds =
+                read_u32(record_header.data(), impl_->little_endian);
+            const std::uint64_t fraction =
+                read_u32(record_header.data() + 4U, impl_->little_endian);
+            timestamp_micros = seconds * 1'000'000U +
+                (impl_->nanosecond_timestamps ? fraction / 1'000U : fraction);
+
             original_size =
                 read_u32(record_header.data() + 12U, impl_->little_endian);
             if (captured_size > kMaxCapturedPacketBytes) {
@@ -708,7 +781,7 @@ ExtractionBatch FeatureExtractor::extract_next_batch_analysis(
         }
         ++records_read;
         impl_->parse_packet(packet, packet_link_type,
-                            captured_size < original_size, flows,
+                            captured_size < original_size, timestamp_micros, flows,
                             scan_detector);
     }
 
@@ -740,6 +813,8 @@ std::vector<std::uint8_t> FeatureExtractor::extract_next_batch() {
              << ",\"destination_port\":" << value.key.destination_port
              << ",\"protocol\":" << static_cast<unsigned>(value.key.protocol)
              << ",\"packet_count\":" << value.packet_count
+             << ",\"first_seen_epoch_micros\":" << value.first_seen_epoch_micros
+             << ",\"last_seen_epoch_micros\":" << value.last_seen_epoch_micros
              << ",\"ttl_mean\":" << value.ttl_mean
              << ",\"ttl_variance\":" << value.ttl_variance
              << ",\"tcp_window_trend\":" << value.tcp_window_trend

@@ -107,6 +107,8 @@ public class IngestionService {
 
                 String rawLabel = values.get(labelIndex).trim();
                 String normalizedLabel = normalizeLabel(rawLabel);
+                String sourceIp = optionalField(values, headers, "src_ip", "source_ip");
+                String destinationIp = optionalField(values, headers, "dst_ip", "destination_ip");
                 Map<String, Double> features = new LinkedHashMap<>();
                 for (int index = 0; index < headers.size(); ++index) {
                     String header = headers.get(index);
@@ -117,10 +119,19 @@ public class IngestionService {
                     features.put(header, parsed.value());
                     sanitizedValues += parsed.sanitized() ? 1L : 0L;
                 }
+                int sourcePort = integerFeature(features, "src_port", "source_port");
+                int destinationPort = integerFeature(features, "dst_port", "destination_port");
+                int protocol = integerFeature(features, "protocol");
+
 
                 AttackStage stage = stageFor(localTimestamp, normalizedLabel, timelines);
                 sink.accept(new FlowRecord(
                         localTimestamp.atZone(datasetZone).toInstant(),
+                        sourceIp,
+                        destinationIp,
+                        sourcePort,
+                        destinationPort,
+                        protocol,
                         Collections.unmodifiableMap(features),
                         rawLabel,
                         normalizedLabel,
@@ -178,6 +189,37 @@ public class IngestionService {
         }
         return trimmed;
     }
+    private static String optionalField(
+            List<String> values,
+            List<String> headers,
+            String... aliases) {
+        for (String alias : aliases) {
+            int index = headers.indexOf(alias);
+            if (index >= 0) {
+                return values.get(index).trim();
+            }
+        }
+        return "";
+    }
+
+    private static int integerFeature(
+            Map<String, Double> features,
+            String... aliases) {
+        for (String alias : aliases) {
+            Double value = features.get(alias);
+            if (value != null && Double.isFinite(value)) {
+                if (value >= Integer.MAX_VALUE) {
+                    return Integer.MAX_VALUE;
+                }
+                if (value <= Integer.MIN_VALUE) {
+                    return Integer.MIN_VALUE;
+                }
+                return value.intValue();
+            }
+        }
+        return 0;
+    }
+
 
     private static List<String> normalizeHeaders(List<String> rawHeaders)
             throws IOException {
@@ -330,6 +372,11 @@ public class IngestionService {
 
     public record FlowRecord(
             Instant timestamp,
+            String sourceIp,
+            String destinationIp,
+            int sourcePort,
+            int destinationPort,
+            int protocol,
             Map<String, Double> features,
             String rawLabel,
             String normalizedLabel,

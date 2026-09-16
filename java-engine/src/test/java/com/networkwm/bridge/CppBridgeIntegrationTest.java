@@ -29,6 +29,8 @@ class CppBridgeIntegrationTest {
         CppBridge.FlowFeatures flow = batch.flows().get(0);
         assertEquals("10.0.0.1", flow.sourceIp());
         assertEquals("10.0.0.2", flow.destinationIp());
+        assertEquals(1_000_000L, flow.firstSeenEpochMicros());
+        assertEquals(2_000_000L, flow.lastSeenEpochMicros());
         assertEquals(80, flow.destinationPort());
         assertEquals(2L, flow.packetCount());
         assertEquals(63.0, flow.ttlMean(), 1e-12);

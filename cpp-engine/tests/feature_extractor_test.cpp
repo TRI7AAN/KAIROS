@@ -99,6 +99,10 @@ void extractor_test() {
     require(flow.key.destination_ip == "10.0.0.2", "unexpected destination IP");
     require(flow.key.destination_port == 80U, "unexpected destination port");
     require(flow.packet_count == 2U, "unexpected packet count");
+    require(flow.first_seen_epoch_micros == 1'000'000U,
+            "unexpected first-seen timestamp");
+    require(flow.last_seen_epoch_micros == 2'000'000U,
+            "unexpected last-seen timestamp");
     require(std::abs(flow.ttl_mean - 63.0) < 1e-12, "unexpected TTL mean");
     require(std::abs(flow.ttl_variance - 1.0) < 1e-12,
             "unexpected TTL variance");

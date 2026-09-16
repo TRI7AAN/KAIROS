@@ -56,6 +56,8 @@ std::string serialize(const networkwm::ExtractionBatch& batch) {
              << ",\"destinationPort\":" << value.key.destination_port
              << ",\"protocol\":" << static_cast<unsigned>(value.key.protocol)
              << ",\"packetCount\":" << value.packet_count
+             << ",\"firstSeenEpochMicros\":" << value.first_seen_epoch_micros
+             << ",\"lastSeenEpochMicros\":" << value.last_seen_epoch_micros
              << ",\"ttlMean\":" << value.ttl_mean
              << ",\"ttlVariance\":" << value.ttl_variance
              << ",\"tcpWindowTrend\":" << value.tcp_window_trend

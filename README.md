@@ -418,4 +418,35 @@ Phase 8 complete - `IngestionService.java` streams CICFlowMeter CSV rows,
 normalizes headers and the known `Infilteration` label anomaly, drops metadata,
 sanitizes missing/NaN/Infinity/out-of-range numeric values, and assigns attack
 stages from the published CIC-IDS2018 timelines. Tests include the real 613,104-row
-infiltration file and its 33 repeated header rows. Work is stopped before Phase 9.
+infiltration file and its 33 repeated header rows.
+
+Phases 9-11 complete - ten-second windowing merges flow and packet features,
+computes host aggregates, builds ordered host-flow graphs, and validates the
+versioned `kairos.sequence.v1` Java/Python contract. Endpoint-free CIC CSVs use
+an explicit `__network__` vector-mode node; host identities are never invented.
+
+Phases 12-16 complete - the reproducible baseline flattens graph windows, fits
+`StandardScaler` on past training windows only, trains converged binary and
+multinomial logistic regressions, and saves metrics, confusion matrices, scaler,
+and model artifacts. On the strict final 20% holdout the binary baseline reaches
+F1 0.4723, precision 0.5854, recall 0.3959, and FPR 0.0629. Stage macro-F1 is
+0.0 because the held-out day is Command-and-Control while that stage is absent
+from earlier training days; this is retained as an honest unseen-class result.
+
+Phases 17-20 complete - a two/three-layer edge-aware GraphSAGE encoder supports
+mean or attention pooling, passes a near-zero-loss small-set overfit check, and
+batches variable-size PyTorch Geometric graphs without shuffling time order.
+
+Phases 21-28 complete - a causal two-layer Transformer with sinusoidal positions
+implements teacher-forced next-state learning and K-step autoregressive rollout.
+Shared infiltration and six-stage heads train with focal classification losses,
+gradient clipping, day-based validation, and best-checkpoint selection.
+
+Phases 29-30 complete - 3,758,796 real CIC flows were compacted into 13,238
+ordered graph windows across four day-level contracts. A three-epoch end-to-end
+run trained on the first three days and held out 2 March as a complete validation
+day. Training loss fell 0.2751 -> 0.1219 -> 0.0987; validation was best at epoch
+1 (0.4084), so `world_model_v1.pt` stores that epoch rather than the overfit
+later epochs. Exact configuration and loss history are saved alongside it.
+Phase 31 is the next starting point. The Phase 16 Git tag remains intentionally
+deferred until the user chooses to commit the current working tree.

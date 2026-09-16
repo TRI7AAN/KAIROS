@@ -87,6 +87,8 @@ public final class CppBridge {
             int destinationPort,
             int protocol,
             long packetCount,
+            long firstSeenEpochMicros,
+            long lastSeenEpochMicros,
             double ttlMean,
             double ttlVariance,
             double tcpWindowTrend,

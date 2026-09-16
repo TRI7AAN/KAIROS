@@ -21,6 +21,8 @@ struct FlowKey {
 struct FlowFeatures {
     FlowKey key;
     std::uint64_t packet_count{};
+    std::uint64_t first_seen_epoch_micros{};
+    std::uint64_t last_seen_epoch_micros{};
     double ttl_mean{};
     double ttl_variance{};
     double tcp_window_trend{};
