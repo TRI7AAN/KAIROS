@@ -3,7 +3,7 @@ set -euo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo_dir="$(cd "${script_dir}/.." && pwd)"
-output_dir="${repo_dir}/data/raw/ctu13-scenario-6"
+output_dir="${repo_dir}/data/raw/ctu13_pcap/scenario06_donbot"
 archive="${output_dir}/capture20110816.truncated.pcap.bz2"
 extracted="${output_dir}/capture20110816.truncated.pcap"
 url="https://mcfp.felk.cvut.cz/publicDatasets/CTU-Malware-Capture-Botnet-47/capture20110816.truncated.pcap.bz2"

@@ -1,7 +1,62 @@
-# Training config — placeholder keys only, no real values yet (Phase 0).
-# Populated in later phases; saved per-run for reproducibility.
-data: {}
-model: {}
-training: {}
-rollout: {}
-logging: {}
+# KAIROS world-model training configuration — real, documented values (Fix 3).
+# This file is the human-readable record of the run. The exact runtime config
+# snapshot is saved per-run to results/world_model_config.json by the trainer.
+
+data:
+  # Source: class-ratio-preserving capped CIC-IDS2018 CSVs (200K rows/day).
+  # Produced by python-ml/pipeline/downsample_flows.py (seed 42); see
+  # data/cic_ids_2018_manifest.yaml for the downsampling entry.
+  source_capped_csvs:
+    - data/processed/cic2018_capped/Wednesday-14-02-2018_TrafficForML_CICFlowMeter.csv
+    - data/processed/cic2018_capped/Thursday-15-02-2018_TrafficForML_CICFlowMeter.csv
+    - data/processed/cic2018_capped/Wednesday-28-02-2018_TrafficForML_CICFlowMeter.csv
+    - data/processed/cic2018_capped/Friday-02-03-2018_TrafficForML_CICFlowMeter.csv
+  # Graph contracts exported with:
+  #   java -cp <classes> com.networkwm.graph.CicDatasetExporter <OUT.json> <IN.csv>
+  # (CicGraphDatasetService, 10-second windows, vector mode for endpoint-free CSVs).
+  window_size_seconds: 10
+  train_contracts:
+    - data/processed/graph_contracts/day14.json
+    - data/processed/graph_contracts/day15.json
+    - data/processed/graph_contracts/day28.json
+  validation_contracts:
+    - data/processed/graph_contracts/day0302.json
+  # Day-based split: train on 2018-02-14 + 2018-02-15 + 2018-02-28 (10,059 windows),
+  # validate on the whole held-out day 2018-03-02 (3,143 windows). Never shuffled.
+  train_windows: 10059
+  validation_windows: 3143
+
+model:
+  hidden_dim: 64
+  state_dim: 64
+  sage_layers: 2
+  transformer_layers: 2
+  transformer_heads: 4
+  dropout: 0.1
+  stage_count: 6
+
+training:
+  epochs: 5
+  chunk_length: 64
+  # One chunk (64 consecutive windows) per optimizer step; chunks are stepped
+  # sequentially, never shuffled, so time order is preserved.
+  batch_size_chunks: 1
+  learning_rate: 0.001
+  optimizer: adamw
+  gradient_clip_norm: 1.0
+  dynamics_weight: 1.0
+  infiltration_weight: 1.0
+  stage_weight: 1.0
+  focal_gamma: 2.0
+  random_seed: 42
+
+rollout:
+  # K-step autoregressive rollout used for evaluation / load-test (Fix 3).
+  k_steps: 5
+
+logging:
+  checkpoint: python-ml/weights/world_model_v1.pt
+  config_snapshot: results/world_model_config.json
+  history: results/world_model_history.json
+  training_log: results/training_log.json
+  loss_curve: results/loss_curve.png

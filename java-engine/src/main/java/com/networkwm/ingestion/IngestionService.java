@@ -247,8 +247,20 @@ public class IngestionService {
     private NumericValue sanitize(String raw, long row, String header)
             throws IOException {
         String value = raw.trim();
-        if (value.isEmpty() || value.equalsIgnoreCase("nan")) {
-            return new NumericValue(0.0, true);
+        if (value.isEmpty()
+                || value.equalsIgnoreCase("nan")
+                || value.equalsIgnoreCase("inf")
+                || value.equalsIgnoreCase("+inf")
+                || value.equalsIgnoreCase("-inf")
+                || value.equalsIgnoreCase("infinity")
+                || value.equalsIgnoreCase("+infinity")
+                || value.equalsIgnoreCase("-infinity")) {
+            boolean negative = value.startsWith("-");
+            if (value.equalsIgnoreCase("nan") || value.isEmpty()) {
+                return new NumericValue(0.0, true);
+            }
+            return new NumericValue(
+                    negative ? -absoluteClip : absoluteClip, true);
         }
         final double parsed;
         try {

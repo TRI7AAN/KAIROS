@@ -52,5 +52,14 @@ data/processed/*
 !data/processed/.gitkeep
 python-ml/weights/*
 !python-ml/weights/.gitkeep
+!python-ml/weights/README.md
+!python-ml/weights/world_model_v1.pt
+!python-ml/weights/baseline_*.joblib
 results/*
 !results/.gitkeep
+!results/*.json
+!results/*.yaml
+!results/*.yml
+!results/*.png
+!results/*.csv
+!results/*.md

@@ -1,0 +1,36 @@
+{
+  "train_contracts": [
+    "day14.json",
+    "day15.json",
+    "day28.json"
+  ],
+  "validation_contracts": [
+    "day0302.json"
+  ],
+  "window_size_seconds": 10,
+  "train_windows": 10059,
+  "validation_windows": 3143,
+  "epochs": 5,
+  "chunk_length": 64,
+  "learning_rate": 0.001,
+  "random_seed": 42,
+  "rollout_k": 5,
+  "training_loss": [
+    0.2646625909075048,
+    0.1221799316428463,
+    0.10318882833958043,
+    0.08829223423594644,
+    0.08447295389722408
+  ],
+  "validation_loss": [
+    0.6115380787849426,
+    0.6835772478580475,
+    0.6784038489311933,
+    0.8364640913158655,
+    0.8863583698868751
+  ],
+  "best_epoch": 0,
+  "best_validation_loss": 0.6115380787849426,
+  "checkpoint": "python-ml/weights/world_model_v1.pt",
+  "elapsed_seconds": 9.794719696044922
+}

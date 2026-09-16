@@ -125,72 +125,115 @@ inventoried CIC raw days remain deliberately undownloaded at 37–50 GiB each.
 ```
 network-world-model/
 ├── cpp-engine/                  # C++ packet-level feature extraction
-│   ├── CMakeLists.txt           # minimal CMake (C++17), static lib target
+│   ├── CMakeLists.txt           # C++17: static lib + kairos_native JNI shared lib + CTest
 │   ├── include/
-│   │   └── feature_extractor.hpp   # typed flow-feature API
+│   │   └── feature_extractor.hpp   # typed flow-feature + port-scan API
 │   ├── src/
-│   │   └── feature_extractor.cpp   # classic-PCAP/PCAPNG parser + aggregation
+│   │   ├── feature_extractor.cpp   # classic-PCAP/PCAPNG parser + flow aggregation
+│   │   └── jni_bridge.cpp          # JNI entry points for CppBridge
 │   └── tests/
-│       └── .gitkeep
+│       └── feature_extractor_test.cpp  # deterministic fixture tests (CTest)
 ├── java-engine/                 # Java base orchestration engine
-│   ├── pom.xml                  # Maven config (Spring Boot, Gemini SDK, OkHttp, JUnit)
+│   ├── pom.xml                  # Maven (Spring Boot, Gemini SDK, OkHttp, JUnit;
+│   │                            # surefire always passes -Dkairos.native.library)
 │   └── src/main/java/com/networkwm/
-│       ├── Application.java          # Spring Boot entrypoint stub
+│       ├── Application.java          # Spring Boot entrypoint
 │       ├── ingestion/
-│       │   └── IngestionService.java     # CSV ingestion, windowing + graph build stub
+│       │   └── IngestionService.java     # streaming CIC CSV ingestion, NaN/Inf
+│       │                               # sanitize, timeline stage labels
+│       ├── window/
+│       │   └── WindowingService.java     # 10s windows + per-host aggregation
+│       ├── graph/
+│       │   ├── GraphConstructionService.java  # host-flow graph snapshots
+│       │   ├── GraphContractService.java      # kairos.sequence.v1 JSON contract
+│       │   ├── CicGraphDatasetService.java    # vector-mode CIC export
+│       │   └── CicDatasetExporter.java        # offline CLI: CSV -> contract JSON
 │       ├── bridge/
-│       │   ├── CppBridge.java             # JNI/JNA bridge to cpp-engine stub
-│       │   └── PythonMlClient.java        # REST client to python-ml stub
+│       │   ├── CppBridge.java             # typed JNI bridge to cpp-engine
+│       │   └── PythonMlClient.java        # REST client to python-ml
 │       ├── narrative/
-│       │   └── GeminiNarrativeService.java # Gemini Java SDK call stub
+│       │   └── GeminiNarrativeService.java # narrative service + local fallback
 │       └── api/
-│           └── ForecastController.java     # public /forecast REST controller stub
+│           └── ForecastController.java     # public /forecast REST controller
 ├── python-ml/                   # Python GNN/Transformer world model service
-│   ├── requirements.txt         # pandas, numpy, sklearn, torch, pyg, shap, flask, ...
-│   ├── app.py                   # Flask entrypoint + /predict route stub
+│   ├── requirements.txt / requirements-dev.txt
+│   ├── app.py                   # Flask entrypoint + /predict route
 │   ├── pipeline/
-│   │   ├── extract_flow.py          # feature-schema validation stub
-│   │   └── graph_builder.py         # Java graph-to-PyG loader stub
+│   │   ├── downsample_flows.py      # seeded (42) stratified 200K/day capping
+│   │   ├── extract_flow.py          # feature-schema validation
+│   │   ├── graph_builder.py         # kairos.sequence.v1 loader (PyG)
+│   │   └── graph_dataset.py         # ordered DataLoader batching
 │   ├── model/
-│   │   ├── encoder_gnn.py           # GraphSAGE/GAT encoder stub
-│   │   ├── dynamics_transformer.py  # temporal dynamics model stub
-│   │   └── forecast_heads.py        # sigmoid + softmax heads stub
+│   │   ├── encoder_gnn.py           # edge-aware GraphSAGE + pooling
+│   │   ├── dynamics_transformer.py  # causal Transformer + K-step rollout
+│   │   ├── forecast_heads.py        # sigmoid/softmax heads + focal joint loss
+│   │   └── world_model.py           # NetworkWorldModel (encoder+dynamics+heads)
+│   ├── training/
+│   │   ├── world_model_trainer.py   # day-split training + best-checkpoint loop
+│   │   ├── dynamics_trainer.py      # embedding-level dynamics training
+│   │   ├── run_world_model.py       # CLI trainer entrypoint
+│   │   ├── run_fix3_training.py     # Fix 3 run: train day14/15/28, val day0302
+│   │   └── load_test_checkpoint.py  # Fix 3 load test: forward + K-step rollout
 │   ├── explain/
-│   │   ├── attention_viz.py         # attention heatmap viz stub
-│   │   └── shap_explain.py          # SHAP-via-surrogate explainability stub
+│   │   ├── attention_viz.py         # attention heatmap viz
+│   │   └── shap_explain.py          # SHAP-via-surrogate explainability
 │   ├── baseline/
-│   │   └── logistic_regression.py   # baseline logistic regression stub
+│   │   ├── logistic_regression.py   # flattened LR baselines + metrics (frozen)
+│   │   └── run_baseline.py          # CLI baseline runner (repo-rooted paths)
 │   ├── configs/
-│   │   └── train_config.yaml        # training config (placeholder keys in Phase 0)
-│   └── weights/
-│       └── .gitkeep
+│   │   └── train_config.yaml        # real run config: 10s windows, K=5,
+│   │                               # lr 1e-3, 5 epochs, day14/15/28 train,
+│   │                               # day0302 validation
+│   ├── weights/
+│   │   ├── README.md                # reproduction steps (weights committed, <100MB)
+│   │   ├── world_model_v1.pt        # trained checkpoint (603KB, epoch 1 best)
+│   │   └── baseline_*.joblib       # frozen baseline scaler + LR models
+│   └── tests/
+│       ├── test_encoder_gnn.py
+│       ├── test_graph_builder.py
+│       ├── test_logistic_regression.py
+│       └── test_world_model.py
 ├── react-ui/                    # React demo dashboard
-│   ├── package.json             # placeholder (react, axios, recharts)
+│   ├── package.json
 │   ├── src/
-│   │   ├── App.jsx                  # root shell component stub
+│   │   ├── App.jsx                  # root shell component
+│   │   ├── index.js
 │   │   ├── components/
-│   │   │   ├── ProbabilityTimeline.jsx   # probability time series chart stub
-│   │   │   ├── FlaggedFlowsTable.jsx     # top-N flagged flows table stub
-│   │   │   ├── StageAnnotations.jsx      # MITRE-stage color overlay stub
-│   │   │   └── NarrativePanel.jsx        # Gemini narrative panel stub
+│   │   │   ├── ProbabilityTimeline.jsx   # probability time series chart
+│   │   │   ├── FlaggedFlowsTable.jsx     # top-N flagged flows table
+│   │   │   ├── StageAnnotations.jsx      # MITRE-stage color overlay
+│   │   │   └── NarrativePanel.jsx        # narrative panel
 │   │   └── api/
-│   │       └── client.js            # axios client to java-engine REST API stub
+│   │       └── client.js            # axios client to java-engine REST API
 │   └── public/
 │       └── .gitkeep
 ├── data/
-│   ├── raw/                     # raw inputs (gitignored, .gitkeep kept)
-│   ├── processed/               # parsed outputs (gitignored, .gitkeep kept)
-│   ├── cic_ids_2018_manifest.yaml # verified selected-day metadata
+│   ├── raw/                     # raw inputs (gitignored; manifests tracked)
+│   │   └── ctu13_pcap/scenario06_donbot/  # canonical CTU-13 path (underscore);
+│   │                               # capture20110816.truncated.pcap: 38,705,338
+│   │                               # packets, 7749.87s (02:09:10), verified
+│   ├── processed/               # parsed outputs (gitignored; manifests tracked)
+│   │   ├── cic2018_capped/        # 200K/day seeded capped CSVs (seed 42)
+│   │   └── graph_contracts/       # day14/day15/day28/day0302.json (10s windows)
+│   ├── cic_ids_2018_manifest.yaml # verified day metadata + downsampling entry
+│   │                             # (seed, script, quotas; inline attack_windows
+│   │                             # are the single timeline convention)
 │   ├── cic_ids_2018_pcap_inventory.yaml # superseded raw-capture inventory
-│   └── ctu13_scenario6_manifest.yaml # selected PCAPNG metadata + validation
-├── results/                     # benchmark artifacts (gitignored, .gitkeep kept)
+│   └── ctu13_scenario6_manifest.yaml # PCAPNG metadata + capinfos provenance
+│                               # (packet count, duration, SHA-256)
+├── results/                     # benchmark artifacts (tracked: *.json/*.yaml/
+│                               # *.png/*.csv/*.md) — baseline_metrics.json,
+│                               # training_log.json, loss_curve.png, ...
 ├── docs/
 │   ├── architecture.md          # standalone architecture + inter-service reference
-│   └── implementationplan.md    # canonical 65-phase deliverable list
+│   ├── implementationplan.md    # canonical 65-phase deliverable list
+│   ├── phase-status.md          # measured results + known limitations
+│   └── graph-contract-v1.md     # kairos.sequence.v1 wire contract
 ├── scripts/
 │   ├── download_cic_ids_2018.sh # verified processed-CSV downloader
 │   └── download_ctu13_scenario6.sh # verified capture downloader/extractor
-├── .gitignore                   # C++/Java/Python/Node/data/weights/results/.env excludes
+├── .gitignore                   # C++/Java/Python/Node/data/weights/results excludes
+│                               # (results artifacts + final weights whitelisted)
 └── README.md                    # this file
 ```
 
@@ -232,7 +275,7 @@ and the complete demonstration must work offline when `ONLINE_MODE=false`.
 
 **Phase 2 — CIC-IDS2018 acquisition.** Download processed CSVs via `aws s3 sync --no-sign-request`; select 3-4 attack days (brute-force, DoS/DDoS, infiltration, botnet) per the published schedule; verify row counts.
 
-**Phase 3 — Raw PCAP subset pull.** Sync matching raw PCAP folders for the same selected days; confirm file sizes are reasonable before parsing.
+**Phase 3 — CTU-13 Scenario 6 truncated-capture acquisition.** Download the official privacy-preserving truncated complete-traffic capture (602,748,112-byte `.bz2`, verified SHA-256), decompress to `data/raw/ctu13_pcap/scenario06_donbot/capture20110816.truncated.pcap`, and verify with `tshark` + `capinfos` (38,705,338 packets, 7749.87s / 02:09:10, headers retained, payload removed). Scenario 6 is the packet-extractor development capture and is excluded from zero-shot scoring.
 
 **Phase 4 — C++ packet-level feature extractor core.** Implement `feature_extractor.cpp`/`.hpp`: parse PCAPs, compute TTL mean/variance, TCP window size trend, IP fragment flag count, retransmission count, payload size mean/std/skew per 5-tuple flow.
 
@@ -425,13 +468,17 @@ computes host aggregates, builds ordered host-flow graphs, and validates the
 versioned `kairos.sequence.v1` Java/Python contract. Endpoint-free CIC CSVs use
 an explicit `__network__` vector-mode node; host identities are never invented.
 
-Phases 12-16 complete - the reproducible baseline flattens graph windows, fits
+Phases 12-16 complete and frozen (git tag `baseline-v1`) - the reproducible baseline flattens graph windows, fits
 `StandardScaler` on past training windows only, trains converged binary and
 multinomial logistic regressions, and saves metrics, confusion matrices, scaler,
-and model artifacts. On the strict final 20% holdout the binary baseline reaches
-F1 0.4723, precision 0.5854, recall 0.3959, and FPR 0.0629. Stage macro-F1 is
-0.0 because the held-out day is Command-and-Control while that stage is absent
-from earlier training days; this is retained as an honest unseen-class result.
+and model artifacts. On the strict final 20% holdout (10,561 train / 2,641 test
+windows over the joined day14/day15/day28/day0302 contracts) the binary baseline reaches
+F1 0.3096, precision 0.5730, recall 0.2121, and FPR 0.0352; see
+`results/baseline_metrics.json`. Stage macro-F1 is
+0.0 because the held-out tail is Command-and-Control while that stage is absent
+from earlier training windows; this is retained as an honest unseen-class result.
+`git diff baseline-v1 -- python-ml/baseline/` must stay empty; any future change
+to baseline logic needs a new tag and explicit justification.
 
 Phases 17-20 complete - a two/three-layer edge-aware GraphSAGE encoder supports
 mean or attention pooling, passes a near-zero-loss small-set overfit check, and
@@ -442,11 +489,19 @@ implements teacher-forced next-state learning and K-step autoregressive rollout.
 Shared infiltration and six-stage heads train with focal classification losses,
 gradient clipping, day-based validation, and best-checkpoint selection.
 
-Phases 29-30 complete - 3,758,796 real CIC flows were compacted into 13,238
-ordered graph windows across four day-level contracts. A three-epoch end-to-end
-run trained on the first three days and held out 2 March as a complete validation
-day. Training loss fell 0.2751 -> 0.1219 -> 0.0987; validation was best at epoch
-1 (0.4084), so `world_model_v1.pt` stores that epoch rather than the overfit
-later epochs. Exact configuration and loss history are saved alongside it.
-Phase 31 is the next starting point. The Phase 16 Git tag remains intentionally
-deferred until the user chooses to commit the current working tree.
+Phases 29-30 complete - 800,001 capped CIC flows (seed-42 stratified capping;
+see `data/cic_ids_2018_manifest.yaml` downsampling entry) were compacted into 13,202
+ordered graph windows across four day-level contracts (day14: 3,253; day15: 3,413;
+day28: 3,393; day0302: 3,143). A five-epoch end-to-end
+run trained on the first three days (10,059 windows) and held out 2 March as a complete validation
+day (3,143 windows; settings in `python-ml/configs/train_config.yaml`: 10s windows, K=5,
+lr 1e-3, chunk 64, seed 42). Training loss fell 0.2647 -> 0.1222 -> 0.1032 -> 0.0883 -> 0.0845;
+validation was best at epoch 1 (0.6115), so `python-ml/weights/world_model_v1.pt`
+(603KB) stores that epoch rather than the overfit later epochs. Exact configuration
+and loss history are saved in `results/world_model_config.json`,
+`results/world_model_history.json`, `results/training_log.json`, and
+`results/loss_curve.png`; `python-ml/training/load_test_checkpoint.py` verifies
+a forward pass plus a full K=5 rollout with finite, correctly shaped output.
+Weights are committed directly (under ~100MB; see `python-ml/weights/README.md`
+for reproduction steps).
+Phase 31 is the next starting point.

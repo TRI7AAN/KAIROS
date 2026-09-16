@@ -60,4 +60,22 @@ class IngestionServiceTest {
         assertEquals("flow_byts_s",
                 IngestionService.normalizeHeader(" Flow Byts/s "));
     }
+
+    @Test
+    void sanitizesLowercaseInfFromCappedCsvs() throws Exception {
+        Path csv = temporaryDirectory.resolve("capped.csv");
+        Files.writeString(csv, String.join("\n",
+                "Flow Duration,Flow Byts/s,Flow Pkts/s,Timestamp,Label",
+                "884,inf,8097.16,14/02/2018 12:55:54,Benign",
+                "247,-inf,Infinity,14/02/2018 12:55:55,Benign"));
+
+        IngestionService service = new IngestionService(ZoneId.of("UTC"), 1000.0);
+        List<IngestionService.FlowRecord> records = service.readAll(
+                csv, IngestionService.cicIds2018Timelines());
+
+        assertEquals(2, records.size());
+        assertEquals(1000.0, records.get(0).features().get("flow_byts_s"));
+        assertEquals(-1000.0, records.get(1).features().get("flow_byts_s"));
+        assertEquals(1000.0, records.get(1).features().get("flow_pkts_s"));
+    }
 }

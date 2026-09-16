@@ -10,10 +10,14 @@ from pipeline.graph_builder import load_graph_sequences
 
 
 def main() -> None:
+    here = Path(__file__).resolve()
+    repo_root = here.parents[2]
     parser = argparse.ArgumentParser()
     parser.add_argument("contracts", nargs="+", type=Path)
-    parser.add_argument("--results", type=Path, default=Path("../results"))
-    parser.add_argument("--weights", type=Path, default=Path("weights"))
+    parser.add_argument(
+        "--results", type=Path, default=repo_root / "results")
+    parser.add_argument(
+        "--weights", type=Path, default=repo_root / "python-ml" / "weights")
     parser.add_argument("--test-fraction", type=float, default=0.2)
     parser.add_argument("--max-iter", type=int, default=1000)
     arguments = parser.parse_args()

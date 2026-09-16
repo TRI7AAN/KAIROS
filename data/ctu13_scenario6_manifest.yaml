@@ -20,7 +20,14 @@ capture:
   extracted_bytes: 3284726956
   extracted_sha256: 19ea13096693f4d81acd36fd24897084f3ef702f9b4fa96ee7bd785209f9e7af
   actual_format: pcapng-1.0
-  duration: "02:09:00"
+  canonical_path: data/raw/ctu13_pcap/scenario06_donbot/capture20110816.truncated.pcap
+  capinfos_packets: 38705338
+  capinfos_capture_duration_seconds: 7749.872541
+  capinfos_earliest: "2011-08-16T13:31:46.972101"
+  capinfos_latest: "2011-08-16T15:40:56.844642"
+  capinfos_sha256: 19ea13096693f4d81acd36fd24897084f3ef702f9b4fa96ee7bd785209f9e7af
+  capinfos_verified_on: 2026-09-16
+  duration: "02:09:10"
   infected_host: 147.32.84.165
 
 truncation:
@@ -39,9 +46,12 @@ labels:
     From-Botnet is malicious; To-Botnet alone is not malicious per se.
 
 phase4_full_scan:
+  verified_on: 2026-09-16
+  extractor: cpp-engine FeatureExtractor::extract_next_batch_analysis batch 100000
   batches_of_100000: 388
   emitted_flow_records: 1976965
   supported_packets: 17412467
+  port_scan_sources_over_threshold: 2302
   truncated_supported_packets: 17411702
   icmp_packets: 47251
   tcp_packets: 7206531

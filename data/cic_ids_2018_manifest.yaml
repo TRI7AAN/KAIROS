@@ -12,6 +12,38 @@ selection:
     infiltration, and botnet behavior while keeping the initial download near
     1.21 GiB. DDoS and web-attack days remain available for later expansion.
 
+downsampling:
+  script: python-ml/pipeline/downsample_flows.py
+  seed: 42
+  target_rows_per_day: 200000
+  method: >-
+    Stratified per-label sample preserving class ratios to within rounding
+    (quotas are round(stratum_share * target) with a minimum of one row;
+    rounding drift is absorbed by the largest stratum; a single
+    random.Random(42) is shared across strata in first-seen label order and
+    sampled indices are sorted back into file order). Header anomaly rows
+    whose Label value equals "Label" are dropped before sampling, matching
+    IngestionService behavior.
+  output_dir: data/processed/cic2018_capped
+  capped_rows:
+    Wednesday-14-02-2018_TrafficForML_CICFlowMeter.csv: 200001
+    Thursday-15-02-2018_TrafficForML_CICFlowMeter.csv: 200000
+    Wednesday-28-02-2018_TrafficForML_CICFlowMeter.csv: 200000
+    Friday-02-03-2018_TrafficForML_CICFlowMeter.csv: 200000
+  known_difference: >-
+    The capped files on disk were produced by an earlier, unrecorded tool
+    (pandas-style cell formatting: empty string for NaN, literal "Infinity"
+    preserved), so downsample_flows.py --check reports DIFFERS in row
+    identity and NaN/Infinity formatting. Per-class row counts match the
+    seeded quotas exactly (verified); the Java IngestionService sanitize()
+    accepts both cell formats. downsample_flows.py is the canonical
+    from-scratch reproduction going forward.
+  attack_timeline_convention: >-
+    Per-day attack windows live inline under each file's attack_windows key
+    in this manifest (no separate attack_timelines.yaml); every downstream
+    reference uses these inline windows and
+    IngestionService.cicIds2018Timelines().
+
 files:
   - file: Wednesday-14-02-2018_TrafficForML_CICFlowMeter.csv
     family: brute_force

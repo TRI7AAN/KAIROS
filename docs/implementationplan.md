@@ -42,7 +42,13 @@ clear "done" state before moving on. Tackle one at a time.
   returns C++ flow and port-scan records. An exact Java-to-C++ round-trip passes.
 - **Phase 8: complete.** CICFlowMeter ingestion is streaming, normalizes headers
   and labels, drops metadata, sanitizes numeric values, and attaches timeline stages.
-- **Phase 9: next.** Add time windows and per-host aggregation. Work is stopped here.
+- **Phase 9: complete.** Ten-second windowing merges flow and packet features
+  with per-host aggregation; see the Phase 9-11 completion notes below.
+- **Phases 10-30: complete.** Graph construction, the versioned
+  Java/Python contract, frozen logistic baselines, the GNN encoder, temporal
+  dynamics with rollout and forecast heads, and the end-to-end training run
+  with checkpoint, config, loss history, and load test are all done.
+  Phase 31 is next.
 
 ---
 
