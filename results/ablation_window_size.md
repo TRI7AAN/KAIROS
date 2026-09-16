@@ -65,7 +65,6 @@ Deferred to Phase 34 (multi-day/stage-coverage fix: stratified or
 multi-day validation containing seen stages), per recommendation (a).
 
 ## Decision — winner: 10s (retain control)
-
 No variant demonstrates infiltration detection (all AUC-ROC <= 0.49, all
 F1@0.5 = 0.0, all rollout leads none). With detection tied at zero, the
 choice falls back to training dynamics and cost:
@@ -80,3 +79,54 @@ choice falls back to training dynamics and cost:
 **Winner: 10s.** Keep `data/processed/graph_contracts/` as canonical.
 Kept for the record: all three `.pt` files, all loss curves/logs, and this doc.
 Deleted after evaluation: `data/processed/graphs_5s/`, `data/processed/graphs_30s/`.
+
+## Stage Head Diagnostic (resolution — recorded here, not just in chat)
+
+**Finding.** The root cause is NOT single-day training data. Training already
+spans all 4 Phase-2 days (day14/day15/day28 train, day0302 validation). The
+root cause is a **coverage gap that no 4-day reshuffle of the current
+selection can fix**: Reconnaissance, Lateral Movement, and Exfiltration appear
+in none of the four days, and the validation stage (C2, day0302) is disjoint
+from the training stages (IA + Impact). Any whole-day holdout on this
+selection validates on an unseen stage.
+
+**Loss starvation ruled out.** The stage head classifies *seen* stages near
+perfectly: 99.13% accuracy (570/575) on day14's Initial-Access windows, with
+only 5 confused as Impact. Gradient flow through the joint focal loss is
+healthy — the head learns what it is shown. The failure is purely that the
+validation class was never shown.
+
+**Infiltration head, same story.** Teacher-forced AUC-ROC on the *seen*
+day14 distribution is 0.53 (weak but above chance); on the *unseen* day0302
+it is 0.48 (chance). On day14 itself, attack-window mean prob (0.164) is
+indistinguishable from benign (0.172) — the 5-epoch run underfits even
+in-distribution, so there are two stacked effects: (1) coverage gap
+(unseen C2 dynamics), (2) an under-trained encoder/dynamics on 10k windows.
+Neither is a window-size effect.
+
+**Decision: no multi-day expansion in this phase (nothing to expand to).**
+Step 2 of the finalize plan is explicitly declined: all 4 selected days are
+already in use, so "expand to multi-day" is a no-op — there is no held-out
+selected day left to add, and the missing stages (Recon/Lateral/Exfil) exist
+in none of them. The candidate "02-16" day named in the task was never part
+of the Phase-2 selection (selection is 02-14, 02-15, 02-28, 03-02); pulling
+new raw days is new data acquisition, out of scope here.
+
+**Consequences.**
+- `weights/world_model_v1.pt` stands as canonical (10s, 4-day). No
+  `world_model_v1_singleday_deprecated.pt` archive is created — there is no
+  single-day checkpoint to deprecate; the current checkpoint IS the multi-day
+  one. No retraining was run in this finalize pass (nothing new to train on).
+- Baseline and world model remain on matching scope (same four contracts;
+  baseline uses a joined final-20% time holdout, world model a whole-day
+  holdout — both documented in `results/baseline_metrics.json` and
+  `results/training_log.json`). No baseline retrain needed.
+- The ablation table above stands as final (all runs on the same 4-day
+  scope; no deprecated-scope re-runs needed).
+- **Deferred to Phase 34 (Stage Refinement, the dedicated phase):**
+  stratified/shuffled-by-block validation containing seen stages, and/or
+  acquisition of days covering Recon/Lateral/Exfil; plus longer training to
+  address the in-distribution underfit. Phase 32 (K and GNN-vs-flat)
+  comparisons remain meaningful as relative architecture comparisons on the
+  fixed split — absolute detection numbers stay near zero until Phase 34
+  fixes coverage, and must be read that way.
