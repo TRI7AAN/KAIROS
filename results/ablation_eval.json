@@ -1,0 +1,652 @@
+{
+  "5": {
+    "checkpoint": "python-ml/weights/world_model_5s.pt",
+    "contract": "data/processed/graphs_5s/day0302.json",
+    "val_windows": 6285,
+    "windows_evaluated": 6284,
+    "infiltration": {
+      "threshold": 0.5,
+      "tp": 0,
+      "fp": 0,
+      "fn": 942,
+      "tn": 5342,
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "fpr": 0.0,
+      "auc_roc": 0.4804410190128939,
+      "auc_pr": 0.15941114997531922
+    },
+    "stage": {
+      "macro_precision": 0.0,
+      "macro_recall": 0.0,
+      "macro_f1": 0.0,
+      "malicious_windows": 942,
+      "per_class": [
+        {
+          "class": "RECONNAISSANCE",
+          "support": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        {
+          "class": "INITIAL_ACCESS",
+          "support": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        {
+          "class": "LATERAL_MOVEMENT",
+          "support": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        {
+          "class": "COMMAND_AND_CONTROL",
+          "support": 942,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        {
+          "class": "EXFILTRATION",
+          "support": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        {
+          "class": "IMPACT",
+          "support": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        }
+      ]
+    },
+    "rollout_k": 5,
+    "rollout_attacks": [
+      {
+        "attack_start_window": 4469,
+        "attack_end_window": 5253,
+        "attack_length_windows": 785,
+        "threshold": 0.5,
+        "attack_mean_prob": 0.24614414561642708,
+        "relative_lead_windows": null,
+        "relative_lead_seconds": null,
+        "note": "absolute 0.5 threshold never crossed (all probs low on unseen C2 day); use ranking/relative-rise instead",
+        "lead_windows": null,
+        "lead_seconds": null,
+        "curve": [
+          {
+            "lead_windows": 12,
+            "mean_prob": 0.25216513872146606
+          },
+          {
+            "lead_windows": 11,
+            "mean_prob": 0.25219112634658813
+          },
+          {
+            "lead_windows": 10,
+            "mean_prob": 0.2520253658294678
+          },
+          {
+            "lead_windows": 9,
+            "mean_prob": 0.252031147480011
+          },
+          {
+            "lead_windows": 8,
+            "mean_prob": 0.2518808841705322
+          },
+          {
+            "lead_windows": 7,
+            "mean_prob": 0.2520776689052582
+          },
+          {
+            "lead_windows": 6,
+            "mean_prob": 0.2520059645175934
+          },
+          {
+            "lead_windows": 5,
+            "mean_prob": 0.2520619332790375
+          },
+          {
+            "lead_windows": 4,
+            "mean_prob": 0.25201234221458435
+          },
+          {
+            "lead_windows": 3,
+            "mean_prob": 0.2521194517612457
+          },
+          {
+            "lead_windows": 2,
+            "mean_prob": 0.2518676519393921
+          },
+          {
+            "lead_windows": 1,
+            "mean_prob": 0.25201958417892456
+          }
+        ]
+      },
+      {
+        "attack_start_window": 4394,
+        "attack_end_window": 4436,
+        "attack_length_windows": 43,
+        "threshold": 0.5,
+        "attack_mean_prob": 0.24614414561642708,
+        "relative_lead_windows": null,
+        "relative_lead_seconds": null,
+        "note": "absolute 0.5 threshold never crossed (all probs low on unseen C2 day); use ranking/relative-rise instead",
+        "lead_windows": null,
+        "lead_seconds": null,
+        "curve": [
+          {
+            "lead_windows": 12,
+            "mean_prob": 0.2520732283592224
+          },
+          {
+            "lead_windows": 11,
+            "mean_prob": 0.2521892189979553
+          },
+          {
+            "lead_windows": 10,
+            "mean_prob": 0.2521829903125763
+          },
+          {
+            "lead_windows": 9,
+            "mean_prob": 0.25222304463386536
+          },
+          {
+            "lead_windows": 8,
+            "mean_prob": 0.25217872858047485
+          },
+          {
+            "lead_windows": 7,
+            "mean_prob": 0.25224214792251587
+          },
+          {
+            "lead_windows": 6,
+            "mean_prob": 0.2521727681159973
+          },
+          {
+            "lead_windows": 5,
+            "mean_prob": 0.25208911299705505
+          },
+          {
+            "lead_windows": 4,
+            "mean_prob": 0.25200214982032776
+          },
+          {
+            "lead_windows": 3,
+            "mean_prob": 0.2518990635871887
+          },
+          {
+            "lead_windows": 2,
+            "mean_prob": 0.25203168392181396
+          },
+          {
+            "lead_windows": 1,
+            "mean_prob": 0.25203201174736023
+          }
+        ]
+      },
+      {
+        "attack_start_window": 4346,
+        "attack_end_window": 4384,
+        "attack_length_windows": 39,
+        "threshold": 0.5,
+        "attack_mean_prob": 0.24614414561642708,
+        "relative_lead_windows": null,
+        "relative_lead_seconds": null,
+        "note": "absolute 0.5 threshold never crossed (all probs low on unseen C2 day); use ranking/relative-rise instead",
+        "lead_windows": null,
+        "lead_seconds": null,
+        "curve": [
+          {
+            "lead_windows": 12,
+            "mean_prob": 0.252225786447525
+          },
+          {
+            "lead_windows": 11,
+            "mean_prob": 0.2520916163921356
+          },
+          {
+            "lead_windows": 10,
+            "mean_prob": 0.25219035148620605
+          },
+          {
+            "lead_windows": 9,
+            "mean_prob": 0.2522542178630829
+          },
+          {
+            "lead_windows": 8,
+            "mean_prob": 0.25219112634658813
+          },
+          {
+            "lead_windows": 7,
+            "mean_prob": 0.25219348073005676
+          },
+          {
+            "lead_windows": 6,
+            "mean_prob": 0.2522946000099182
+          },
+          {
+            "lead_windows": 5,
+            "mean_prob": 0.2523365914821625
+          },
+          {
+            "lead_windows": 4,
+            "mean_prob": 0.25215259194374084
+          },
+          {
+            "lead_windows": 3,
+            "mean_prob": 0.2522768974304199
+          },
+          {
+            "lead_windows": 2,
+            "mean_prob": 0.25223594903945923
+          },
+          {
+            "lead_windows": 1,
+            "mean_prob": 0.25229835510253906
+          }
+        ]
+      }
+    ]
+  },
+  "10": {
+    "checkpoint": "python-ml/weights/world_model_v1.pt",
+    "contract": "data/processed/graph_contracts/day0302.json",
+    "val_windows": 3143,
+    "windows_evaluated": 3142,
+    "infiltration": {
+      "threshold": 0.5,
+      "tp": 0,
+      "fp": 0,
+      "fn": 481,
+      "tn": 2661,
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "fpr": 0.0,
+      "auc_roc": 0.48379964388983554,
+      "auc_pr": 0.1594818000206227
+    },
+    "stage": {
+      "macro_precision": 0.0,
+      "macro_recall": 0.0,
+      "macro_f1": 0.0,
+      "malicious_windows": 481,
+      "per_class": [
+        {
+          "class": "RECONNAISSANCE",
+          "support": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        {
+          "class": "INITIAL_ACCESS",
+          "support": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        {
+          "class": "LATERAL_MOVEMENT",
+          "support": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        {
+          "class": "COMMAND_AND_CONTROL",
+          "support": 481,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        {
+          "class": "EXFILTRATION",
+          "support": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        {
+          "class": "IMPACT",
+          "support": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        }
+      ]
+    },
+    "rollout_k": 5,
+    "rollout_attacks": [
+      {
+        "attack_start_window": 2162,
+        "attack_end_window": 2627,
+        "attack_length_windows": 466,
+        "threshold": 0.5,
+        "attack_mean_prob": 0.1670260669938492,
+        "relative_lead_windows": null,
+        "relative_lead_seconds": null,
+        "note": "absolute 0.5 threshold never crossed (all probs low on unseen C2 day); use ranking/relative-rise instead",
+        "lead_windows": null,
+        "lead_seconds": null,
+        "curve": [
+          {
+            "lead_windows": 12,
+            "mean_prob": 0.1661103069782257
+          },
+          {
+            "lead_windows": 11,
+            "mean_prob": 0.16341881453990936
+          },
+          {
+            "lead_windows": 10,
+            "mean_prob": 0.16446639597415924
+          },
+          {
+            "lead_windows": 9,
+            "mean_prob": 0.16508640348911285
+          },
+          {
+            "lead_windows": 8,
+            "mean_prob": 0.16515976190567017
+          },
+          {
+            "lead_windows": 7,
+            "mean_prob": 0.16617220640182495
+          },
+          {
+            "lead_windows": 6,
+            "mean_prob": 0.16594113409519196
+          },
+          {
+            "lead_windows": 5,
+            "mean_prob": 0.16492357850074768
+          },
+          {
+            "lead_windows": 4,
+            "mean_prob": 0.16566386818885803
+          },
+          {
+            "lead_windows": 3,
+            "mean_prob": 0.16499581933021545
+          },
+          {
+            "lead_windows": 2,
+            "mean_prob": 0.16322700679302216
+          },
+          {
+            "lead_windows": 1,
+            "mean_prob": 0.1644836962223053
+          }
+        ]
+      },
+      {
+        "attack_start_window": 2143,
+        "attack_end_window": 2148,
+        "attack_length_windows": 6,
+        "threshold": 0.5,
+        "attack_mean_prob": 0.1670260669938492,
+        "relative_lead_windows": null,
+        "relative_lead_seconds": null,
+        "note": "absolute 0.5 threshold never crossed (all probs low on unseen C2 day); use ranking/relative-rise instead",
+        "lead_windows": null,
+        "lead_seconds": null,
+        "curve": [
+          {
+            "lead_windows": 12,
+            "mean_prob": 0.16437582671642303
+          },
+          {
+            "lead_windows": 11,
+            "mean_prob": 0.1645941138267517
+          },
+          {
+            "lead_windows": 10,
+            "mean_prob": 0.16478480398654938
+          },
+          {
+            "lead_windows": 9,
+            "mean_prob": 0.1655900776386261
+          },
+          {
+            "lead_windows": 8,
+            "mean_prob": 0.16465498507022858
+          },
+          {
+            "lead_windows": 7,
+            "mean_prob": 0.16478654742240906
+          },
+          {
+            "lead_windows": 6,
+            "mean_prob": 0.16557864844799042
+          },
+          {
+            "lead_windows": 5,
+            "mean_prob": 0.16578206419944763
+          },
+          {
+            "lead_windows": 4,
+            "mean_prob": 0.16571691632270813
+          },
+          {
+            "lead_windows": 3,
+            "mean_prob": 0.16462166607379913
+          },
+          {
+            "lead_windows": 2,
+            "mean_prob": 0.16589686274528503
+          },
+          {
+            "lead_windows": 1,
+            "mean_prob": 0.1650467813014984
+          }
+        ]
+      },
+      {
+        "attack_start_window": 2150,
+        "attack_end_window": 2154,
+        "attack_length_windows": 5,
+        "threshold": 0.5,
+        "attack_mean_prob": 0.1670260669938492,
+        "relative_lead_windows": null,
+        "relative_lead_seconds": null,
+        "note": "absolute 0.5 threshold never crossed (all probs low on unseen C2 day); use ranking/relative-rise instead",
+        "lead_windows": null,
+        "lead_seconds": null,
+        "curve": [
+          {
+            "lead_windows": 12,
+            "mean_prob": 0.16578206419944763
+          },
+          {
+            "lead_windows": 11,
+            "mean_prob": 0.16571691632270813
+          },
+          {
+            "lead_windows": 10,
+            "mean_prob": 0.16462166607379913
+          },
+          {
+            "lead_windows": 9,
+            "mean_prob": 0.16589686274528503
+          },
+          {
+            "lead_windows": 8,
+            "mean_prob": 0.1650467813014984
+          },
+          {
+            "lead_windows": 7,
+            "mean_prob": 0.1658109724521637
+          },
+          {
+            "lead_windows": 6,
+            "mean_prob": 0.16592688858509064
+          },
+          {
+            "lead_windows": 5,
+            "mean_prob": 0.16598321497440338
+          },
+          {
+            "lead_windows": 4,
+            "mean_prob": 0.16532938182353973
+          },
+          {
+            "lead_windows": 3,
+            "mean_prob": 0.16542309522628784
+          },
+          {
+            "lead_windows": 2,
+            "mean_prob": 0.16609103977680206
+          },
+          {
+            "lead_windows": 1,
+            "mean_prob": 0.16599348187446594
+          }
+        ]
+      }
+    ]
+  },
+  "30": {
+    "checkpoint": "python-ml/weights/world_model_30s.pt",
+    "contract": "data/processed/graphs_30s/day0302.json",
+    "val_windows": 1048,
+    "windows_evaluated": 1047,
+    "infiltration": {
+      "threshold": 0.5,
+      "tp": 0,
+      "fp": 0,
+      "fn": 163,
+      "tn": 884,
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "fpr": 0.0,
+      "auc_roc": 0.4349096410626544,
+      "auc_pr": 0.18531423696336982
+    },
+    "stage": {
+      "macro_precision": 0.0,
+      "macro_recall": 0.0,
+      "macro_f1": 0.0,
+      "malicious_windows": 163,
+      "per_class": [
+        {
+          "class": "RECONNAISSANCE",
+          "support": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        {
+          "class": "INITIAL_ACCESS",
+          "support": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        {
+          "class": "LATERAL_MOVEMENT",
+          "support": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        {
+          "class": "COMMAND_AND_CONTROL",
+          "support": 163,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        {
+          "class": "EXFILTRATION",
+          "support": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        {
+          "class": "IMPACT",
+          "support": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        }
+      ]
+    },
+    "rollout_k": 5,
+    "rollout_attacks": [
+      {
+        "attack_start_window": 714,
+        "attack_end_window": 876,
+        "attack_length_windows": 163,
+        "threshold": 0.5,
+        "attack_mean_prob": 0.2469604450500816,
+        "relative_lead_windows": null,
+        "relative_lead_seconds": null,
+        "note": "absolute 0.5 threshold never crossed (all probs low on unseen C2 day); use ranking/relative-rise instead",
+        "lead_windows": null,
+        "lead_seconds": null,
+        "curve": [
+          {
+            "lead_windows": 12,
+            "mean_prob": 0.13171859085559845
+          },
+          {
+            "lead_windows": 11,
+            "mean_prob": 0.13175226747989655
+          },
+          {
+            "lead_windows": 10,
+            "mean_prob": 0.13178300857543945
+          },
+          {
+            "lead_windows": 9,
+            "mean_prob": 0.13176298141479492
+          },
+          {
+            "lead_windows": 8,
+            "mean_prob": 0.13173945248126984
+          },
+          {
+            "lead_windows": 7,
+            "mean_prob": 0.1317463219165802
+          },
+          {
+            "lead_windows": 6,
+            "mean_prob": 0.13176944851875305
+          },
+          {
+            "lead_windows": 5,
+            "mean_prob": 0.1317949742078781
+          },
+          {
+            "lead_windows": 4,
+            "mean_prob": 0.13179931044578552
+          },
+          {
+            "lead_windows": 3,
+            "mean_prob": 0.13179299235343933
+          },
+          {
+            "lead_windows": 2,
+            "mean_prob": 0.13178057968616486
+          },
+          {
+            "lead_windows": 1,
+            "mean_prob": 0.1313525140285492
+          }
+        ]
+      }
+    ]
+  }
+}

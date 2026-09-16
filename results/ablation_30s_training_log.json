@@ -1,0 +1,37 @@
+{
+  "window_size_seconds": 30,
+  "train_contracts": [
+    "day14.json",
+    "day15.json",
+    "day28.json"
+  ],
+  "validation_contracts": [
+    "day0302.json"
+  ],
+  "contract_dir": "/home/kali/Desktop/KAIROS/data/processed/graphs_30s",
+  "train_windows": 3369,
+  "validation_windows": 1048,
+  "epochs": 5,
+  "chunk_length": 64,
+  "learning_rate": 0.001,
+  "random_seed": 42,
+  "rollout_k": 5,
+  "training_loss": [
+    0.6965810999806438,
+    0.3269500220194459,
+    0.26634554132553084,
+    0.2130164156800934,
+    0.20622952335647174
+  ],
+  "validation_loss": [
+    0.571649250738761,
+    0.713784330031451,
+    0.8188066780567169,
+    0.5768974524210481,
+    0.5582512934856555
+  ],
+  "best_epoch": 4,
+  "best_validation_loss": 0.5582512934856555,
+  "checkpoint": "python-ml/weights/world_model_30s.pt",
+  "elapsed_seconds": 3.668757915496826
+}

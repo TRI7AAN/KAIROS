@@ -504,4 +504,4 @@ and loss history are saved in `results/world_model_config.json`,
 a forward pass plus a full K=5 rollout with finite, correctly shaped output.
 Weights are committed directly (under ~100MB; see `python-ml/weights/README.md`
 for reproduction steps).
-Phase 31 is the next starting point.
+Phase 31 complete — window size ablation run (5s/10s/30s), winning configuration: 10s, documented in results/ablation_window_size.md. Step 0 diagnostic: stage macro-F1 = 0.0 is a data-coverage artifact (validation stage C2 entirely absent from training; three of six stages appear nowhere), not a modeling bug — deferred to Phase 34 for a multi-day/stage-coverage fix. Next: Phase 32 (ablation: K and GNN-vs-flat).
