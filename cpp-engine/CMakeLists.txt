@@ -3,14 +3,46 @@ project(cpp-engine LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
-# Static library target for the dependency-free classic-PCAP feature extractor.
-# Phase 4 intentionally avoids a libpcap runtime dependency so offline builds
-# can parse Ethernet/raw-IPv4 PCAP files directly.
-add_library(feature_extractor STATIC
+# Keep the extractor dependency-free so captures remain usable offline.
+add_library(feature_extractor_core OBJECT
     src/feature_extractor.cpp
 )
 
+set_target_properties(feature_extractor_core PROPERTIES
+    POSITION_INDEPENDENT_CODE ON
+)
+
+target_include_directories(feature_extractor_core PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+add_library(feature_extractor STATIC
+    $<TARGET_OBJECTS:feature_extractor_core>
+)
 target_include_directories(feature_extractor PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
+
+find_package(JNI REQUIRED)
+add_library(kairos_native SHARED
+    src/jni_bridge.cpp
+    $<TARGET_OBJECTS:feature_extractor_core>
+)
+target_include_directories(kairos_native PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${JNI_INCLUDE_DIRS}
+)
+set_target_properties(kairos_native PROPERTIES
+    OUTPUT_NAME kairos_native
+)
+
+include(CTest)
+if(BUILD_TESTING)
+    add_executable(feature_extractor_tests
+        tests/feature_extractor_test.cpp
+    )
+    target_link_libraries(feature_extractor_tests PRIVATE feature_extractor)
+    add_test(NAME feature_extractor_tests COMMAND feature_extractor_tests)
+endif()

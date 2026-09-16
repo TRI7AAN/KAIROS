@@ -26,16 +26,66 @@ struct FlowFeatures {
     double tcp_window_trend{};
     std::uint64_t fragment_count{};
     std::uint64_t retransmission_count{};
+    std::uint64_t truncated_packet_count{};
     double payload_size_mean{};
     double payload_size_stddev{};
     double payload_size_skew{};
 };
 
+enum class PortScanPattern {
+    none,
+    sequential,
+    randomized,
+};
+
+const char* to_string(PortScanPattern pattern) noexcept;
+
+struct PortScanConfig {
+    std::size_t minimum_unique_ports{20};
+    double sequential_ratio_threshold{0.70};
+};
+
+struct PortScanFeatures {
+    std::string source_ip;
+    std::uint64_t observed_packets{};
+    std::size_t unique_destination_ports{};
+    double sequential_transition_ratio{};
+    PortScanPattern pattern{PortScanPattern::none};
+};
+
+/** Callable per-window detector; observations must be supplied in time order. */
+class PortScanDetector {
+public:
+    explicit PortScanDetector(PortScanConfig config = {});
+    ~PortScanDetector();
+
+    PortScanDetector(const PortScanDetector&) = delete;
+    PortScanDetector& operator=(const PortScanDetector&) = delete;
+    PortScanDetector(PortScanDetector&&) noexcept;
+    PortScanDetector& operator=(PortScanDetector&&) noexcept;
+
+    void observe(const FlowKey& flow);
+    std::vector<PortScanFeatures> results(
+        bool include_below_threshold = false) const;
+    void reset();
+
+private:
+    struct Impl;
+    std::unique_ptr<Impl> impl_;
+};
+
+struct ExtractionBatch {
+    std::vector<FlowFeatures> flows;
+    std::vector<PortScanFeatures> port_scans;
+};
+
 /**
- * Dependency-free classic-PCAP reader and per-direction 5-tuple aggregator.
+ * Dependency-free classic-PCAP/PCAPNG reader and per-direction 5-tuple aggregator.
  *
  * Phase 4 supports Ethernet (including VLAN tags) and raw-IPv4 captures, IPv4,
- * and TCP/UDP flows. Malformed or unsupported packets are skipped safely.
+ * and TCP/UDP/ICMP flows. For header-truncated captures, logical payload size is
+ * recovered from IPv4 and transport length headers instead of snap length.
+ * Malformed or unsupported packets are skipped safely.
  * Retransmissions are counted when an identical TCP sequence/payload range is
  * observed again in the same batch.
  */
@@ -49,13 +99,17 @@ public:
     FeatureExtractor(FeatureExtractor&&) noexcept;
     FeatureExtractor& operator=(FeatureExtractor&&) noexcept;
 
-    /** Open and validate a classic PCAP file, resetting prior state. */
+    /** Open and validate a classic PCAP or PCAPNG file, resetting prior state. */
     bool open(const std::string& pcap_path);
 
     /**
-     * Parse up to max_packets capture records and aggregate them by 5-tuple.
-     * An empty result means EOF or an error; inspect eof() and last_error().
+     * Parse one packet window, returning flow features and detected port scans.
      */
+    ExtractionBatch extract_next_batch_analysis(
+        std::size_t max_packets = 4096,
+        PortScanConfig scan_config = {});
+
+    /** Compatibility helper returning only the flow portion of a batch. */
     std::vector<FlowFeatures> extract_next_batch_features(
         std::size_t max_packets = 4096);
 

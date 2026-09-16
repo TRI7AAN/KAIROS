@@ -8,6 +8,7 @@
 #include <map>
 #include <set>
 #include <sstream>
+#include <stdexcept>
 #include <tuple>
 #include <utility>
 
@@ -27,6 +28,14 @@ std::uint32_t read_be32(const std::uint8_t* bytes) {
            (static_cast<std::uint32_t>(bytes[1]) << 16U) |
            (static_cast<std::uint32_t>(bytes[2]) << 8U) |
            static_cast<std::uint32_t>(bytes[3]);
+}
+
+std::uint16_t read_u16(const std::uint8_t* bytes, bool little_endian) {
+    if (little_endian) {
+        return static_cast<std::uint16_t>(bytes[0]) |
+               static_cast<std::uint16_t>(bytes[1] << 8U);
+    }
+    return read_be16(bytes);
 }
 
 std::uint32_t read_u32(const std::uint8_t* bytes, bool little_endian) {
@@ -67,6 +76,7 @@ struct RunningAggregate {
     double ttl_square_sum{};
     std::uint64_t fragment_count{};
     std::uint64_t retransmission_count{};
+    std::uint64_t truncated_packet_count{};
     double payload_sum{};
     double payload_square_sum{};
     double payload_cube_sum{};
@@ -80,6 +90,7 @@ struct RunningAggregate {
     void add(std::uint8_t ttl,
              bool fragmented,
              std::uint32_t payload_size,
+             bool capture_truncated,
              bool is_tcp,
              std::uint16_t tcp_window,
              std::uint32_t tcp_sequence,
@@ -89,6 +100,7 @@ struct RunningAggregate {
         ttl_sum += ttl_value;
         ttl_square_sum += ttl_value * ttl_value;
         fragment_count += fragmented ? 1U : 0U;
+        truncated_packet_count += capture_truncated ? 1U : 0U;
 
         const double payload_value = payload_size;
         payload_sum += payload_value;
@@ -120,6 +132,7 @@ FlowFeatures finish(const FlowKey& key, const RunningAggregate& aggregate) {
     result.packet_count = aggregate.packet_count;
     result.fragment_count = aggregate.fragment_count;
     result.retransmission_count = aggregate.retransmission_count;
+    result.truncated_packet_count = aggregate.truncated_packet_count;
 
     if (aggregate.packet_count == 0U) {
         return result;
@@ -167,18 +180,259 @@ bool FlowKey::operator<(const FlowKey& other) const noexcept {
                     other.destination_port, other.protocol);
 }
 
+const char* to_string(PortScanPattern pattern) noexcept {
+    switch (pattern) {
+    case PortScanPattern::sequential:
+        return "sequential";
+    case PortScanPattern::randomized:
+        return "randomized";
+    case PortScanPattern::none:
+    default:
+        return "none";
+    }
+}
+
+struct PortScanDetector::Impl {
+    struct SourceObservation {
+        std::uint64_t observed_packets{};
+        std::set<std::uint16_t> unique_ports;
+        std::vector<std::uint16_t> first_seen_ports;
+    };
+
+    explicit Impl(PortScanConfig requested_config) : config(requested_config) {
+        if (config.minimum_unique_ports < 2U) {
+            throw std::invalid_argument(
+                "minimum_unique_ports must be at least 2");
+        }
+        if (!std::isfinite(config.sequential_ratio_threshold) ||
+            config.sequential_ratio_threshold < 0.0 ||
+            config.sequential_ratio_threshold > 1.0) {
+            throw std::invalid_argument(
+                "sequential_ratio_threshold must be between 0 and 1");
+        }
+    }
+
+    PortScanConfig config;
+    std::map<std::string, SourceObservation> sources;
+};
+
+PortScanDetector::PortScanDetector(PortScanConfig config)
+    : impl_(std::make_unique<Impl>(config)) {}
+PortScanDetector::~PortScanDetector() = default;
+PortScanDetector::PortScanDetector(PortScanDetector&&) noexcept = default;
+PortScanDetector& PortScanDetector::operator=(PortScanDetector&&) noexcept = default;
+
+void PortScanDetector::observe(const FlowKey& flow) {
+    if ((flow.protocol != 6U && flow.protocol != 17U) ||
+        flow.destination_port == 0U || flow.source_ip.empty()) {
+        return;
+    }
+    auto& source = impl_->sources[flow.source_ip];
+    ++source.observed_packets;
+    if (source.unique_ports.insert(flow.destination_port).second) {
+        source.first_seen_ports.push_back(flow.destination_port);
+    }
+}
+
+std::vector<PortScanFeatures> PortScanDetector::results(
+    bool include_below_threshold) const {
+    std::vector<PortScanFeatures> detected;
+    for (const auto& entry : impl_->sources) {
+        const auto& source = entry.second;
+        PortScanFeatures result;
+        result.source_ip = entry.first;
+        result.observed_packets = source.observed_packets;
+        result.unique_destination_ports = source.unique_ports.size();
+
+        if (source.first_seen_ports.size() > 1U) {
+            std::size_t sequential_transitions = 0U;
+            for (std::size_t index = 1U;
+                 index < source.first_seen_ports.size(); ++index) {
+                const int previous = source.first_seen_ports[index - 1U];
+                const int current = source.first_seen_ports[index];
+                sequential_transitions +=
+                    std::abs(current - previous) == 1 ? 1U : 0U;
+            }
+            result.sequential_transition_ratio =
+                static_cast<double>(sequential_transitions) /
+                static_cast<double>(source.first_seen_ports.size() - 1U);
+        }
+
+        if (result.unique_destination_ports >=
+            impl_->config.minimum_unique_ports) {
+            result.pattern = result.sequential_transition_ratio >=
+                    impl_->config.sequential_ratio_threshold
+                ? PortScanPattern::sequential
+                : PortScanPattern::randomized;
+        }
+        if (include_below_threshold ||
+            result.pattern != PortScanPattern::none) {
+            detected.push_back(std::move(result));
+        }
+    }
+    return detected;
+}
+
+void PortScanDetector::reset() {
+    impl_->sources.clear();
+}
+
 struct FeatureExtractor::Impl {
     std::ifstream stream;
     bool little_endian{true};
     std::uint32_t link_type{};
+    bool pcapng{};
     bool reached_eof{true};
     std::string error;
+    std::vector<std::uint32_t> interface_link_types;
+    std::vector<std::uint32_t> interface_snap_lengths;
     std::map<FragmentKey, FlowKey> fragment_flows;
 
+    bool read_next_pcapng_packet(std::vector<std::uint8_t>& packet,
+                                 std::uint32_t& original_size,
+                                 std::uint32_t& packet_link_type) {
+        while (true) {
+            std::array<std::uint8_t, 8> block_header{};
+            stream.read(reinterpret_cast<char*>(block_header.data()),
+                        block_header.size());
+            const std::streamsize header_bytes = stream.gcount();
+            if (header_bytes == 0 && stream.eof()) {
+                reached_eof = true;
+                stream.clear();
+                return false;
+            }
+            if (header_bytes != static_cast<std::streamsize>(block_header.size())) {
+                error = "Truncated PCAPNG block header";
+                reached_eof = true;
+                return false;
+            }
+
+            const bool section_header =
+                block_header[0] == 0x0AU && block_header[1] == 0x0DU &&
+                block_header[2] == 0x0DU && block_header[3] == 0x0AU;
+            if (section_header) {
+                std::array<std::uint8_t, 4> byte_order_magic{};
+                if (!stream.read(reinterpret_cast<char*>(byte_order_magic.data()),
+                                 byte_order_magic.size())) {
+                    error = "Truncated PCAPNG section header";
+                    reached_eof = true;
+                    return false;
+                }
+                if (byte_order_magic ==
+                    std::array<std::uint8_t, 4>{0x4D, 0x3C, 0x2B, 0x1A}) {
+                    little_endian = true;
+                } else if (byte_order_magic ==
+                           std::array<std::uint8_t, 4>{0x1A, 0x2B, 0x3C, 0x4D}) {
+                    little_endian = false;
+                } else {
+                    error = "Invalid PCAPNG byte-order magic";
+                    reached_eof = true;
+                    return false;
+                }
+                const std::uint32_t block_size =
+                    read_u32(block_header.data() + 4U, little_endian);
+                if (block_size < 28U || block_size > kMaxCapturedPacketBytes) {
+                    error = "Invalid PCAPNG section block size";
+                    reached_eof = true;
+                    return false;
+                }
+                std::vector<std::uint8_t> remainder(block_size - 12U);
+                if (!stream.read(reinterpret_cast<char*>(remainder.data()),
+                                 static_cast<std::streamsize>(remainder.size())) ||
+                    read_u32(remainder.data() + remainder.size() - 4U,
+                             little_endian) != block_size) {
+                    error = "Corrupt PCAPNG section block";
+                    reached_eof = true;
+                    return false;
+                }
+                interface_link_types.clear();
+                interface_snap_lengths.clear();
+                continue;
+            }
+
+            const std::uint32_t block_type =
+                read_u32(block_header.data(), little_endian);
+            const std::uint32_t block_size =
+                read_u32(block_header.data() + 4U, little_endian);
+            if (block_size < 12U || block_size > kMaxCapturedPacketBytes) {
+                error = "Invalid PCAPNG block size";
+                reached_eof = true;
+                return false;
+            }
+            std::vector<std::uint8_t> body(block_size - 8U);
+            if (!stream.read(reinterpret_cast<char*>(body.data()),
+                             static_cast<std::streamsize>(body.size())) ||
+                read_u32(body.data() + body.size() - 4U, little_endian) !=
+                    block_size) {
+                error = "Corrupt or truncated PCAPNG block";
+                reached_eof = true;
+                return false;
+            }
+
+            if (block_type == 1U) {
+                if (body.size() < 12U) {
+                    error = "Truncated PCAPNG interface block";
+                    reached_eof = true;
+                    return false;
+                }
+                interface_link_types.push_back(read_u16(body.data(), little_endian));
+                interface_snap_lengths.push_back(
+                    read_u32(body.data() + 4U, little_endian));
+                continue;
+            }
+
+            if (block_type == 6U) {
+                if (body.size() < 24U) {
+                    error = "Truncated PCAPNG enhanced packet block";
+                    reached_eof = true;
+                    return false;
+                }
+                const std::uint32_t interface_id =
+                    read_u32(body.data(), little_endian);
+                const std::uint32_t captured_size =
+                    read_u32(body.data() + 12U, little_endian);
+                original_size = read_u32(body.data() + 16U, little_endian);
+                if (interface_id >= interface_link_types.size() ||
+                    captured_size > body.size() - 24U) {
+                    error = "Invalid PCAPNG enhanced packet metadata";
+                    reached_eof = true;
+                    return false;
+                }
+                packet_link_type = interface_link_types[interface_id];
+                packet.assign(body.begin() + 20,
+                              body.begin() + 20 + captured_size);
+                return true;
+            }
+
+            if (block_type == 3U) {
+                if (body.size() < 8U || interface_link_types.empty()) {
+                    error = "Invalid PCAPNG simple packet block";
+                    reached_eof = true;
+                    return false;
+                }
+                original_size = read_u32(body.data(), little_endian);
+                const std::uint32_t captured_size = std::min(
+                    original_size, interface_snap_lengths.front());
+                if (captured_size > body.size() - 8U) {
+                    error = "Invalid PCAPNG simple packet metadata";
+                    reached_eof = true;
+                    return false;
+                }
+                packet_link_type = interface_link_types.front();
+                packet.assign(body.begin() + 4,
+                              body.begin() + 4 + captured_size);
+                return true;
+            }
+        }
+    }
+
     bool parse_packet(const std::vector<std::uint8_t>& packet,
-                      std::map<FlowKey, RunningAggregate>& flows) {
+                      std::uint32_t packet_link_type,
+                      bool capture_truncated,
+                      std::map<FlowKey, RunningAggregate>& flows,
+                      PortScanDetector& scan_detector) {
         std::size_t ip_offset = 0;
-        if (link_type == kEthernetLinkType) {
+        if (packet_link_type == kEthernetLinkType) {
             if (packet.size() < 14U) {
                 return false;
             }
@@ -196,7 +450,7 @@ struct FeatureExtractor::Impl {
             if (ether_type != 0x0800U) {
                 return false;
             }
-        } else if (link_type != kRawIpv4LinkType) {
+        } else if (packet_link_type != kRawIpv4LinkType) {
             return false;
         }
 
@@ -218,6 +472,7 @@ struct FeatureExtractor::Impl {
         }
         const std::size_t captured_ip_size =
             std::min<std::size_t>(declared_ip_size, packet.size() - ip_offset);
+        const std::size_t logical_transport_size = declared_ip_size - ip_header_size;
         const std::uint16_t fragment_field = read_be16(ip + 6U);
         const bool more_fragments = (fragment_field & 0x2000U) != 0U;
         const std::uint16_t fragment_offset = fragment_field & 0x1FFFU;
@@ -232,8 +487,10 @@ struct FeatureExtractor::Impl {
             key.source_ip, key.destination_ip, protocol, read_be16(ip + 4U)};
 
         const std::uint8_t* transport = ip + ip_header_size;
-        const std::size_t transport_size = captured_ip_size - ip_header_size;
-        std::uint32_t payload_size = static_cast<std::uint32_t>(transport_size);
+        const std::size_t captured_transport_size =
+            captured_ip_size - ip_header_size;
+        std::uint32_t payload_size =
+            static_cast<std::uint32_t>(logical_transport_size);
         bool is_tcp = false;
         std::uint16_t tcp_window = 0U;
         std::uint32_t tcp_sequence = 0U;
@@ -245,7 +502,8 @@ struct FeatureExtractor::Impl {
                 return false;
             }
             key = existing_flow->second;
-            flows[key].add(ip[8], true, payload_size, false, 0U, 0U, 0U);
+            flows[key].add(ip[8], true, payload_size, capture_truncated,
+                           false, 0U, 0U, 0U);
             if (!more_fragments) {
                 fragment_flows.erase(existing_flow);
             }
@@ -253,7 +511,7 @@ struct FeatureExtractor::Impl {
         }
 
         if (protocol == 6U) {
-            if (transport_size < 20U) {
+            if (captured_transport_size < 20U) {
                 return false;
             }
             is_tcp = true;
@@ -261,30 +519,54 @@ struct FeatureExtractor::Impl {
             key.destination_port = read_be16(transport + 2U);
             tcp_sequence = read_be32(transport + 4U);
             const std::size_t tcp_header_size = (transport[12] >> 4U) * 4U;
-            if (tcp_header_size < 20U || transport_size < tcp_header_size) {
+            if (tcp_header_size < 20U ||
+                captured_transport_size < tcp_header_size ||
+                logical_transport_size < tcp_header_size) {
                 return false;
             }
             tcp_window = read_be16(transport + 14U);
-            payload_size = static_cast<std::uint32_t>(transport_size - tcp_header_size);
+            payload_size = static_cast<std::uint32_t>(
+                logical_transport_size - tcp_header_size);
             const bool syn = (transport[13] & 0x02U) != 0U;
             const bool fin = (transport[13] & 0x01U) != 0U;
             sequence_span = payload_size + (syn ? 1U : 0U) + (fin ? 1U : 0U);
         } else if (protocol == 17U) {
-            if (transport_size < 8U) {
+            if (captured_transport_size < 8U) {
                 return false;
             }
             key.source_port = read_be16(transport);
             key.destination_port = read_be16(transport + 2U);
-            payload_size = static_cast<std::uint32_t>(transport_size - 8U);
-        } else if (protocol != 6U && protocol != 17U) {
+            const std::uint16_t udp_size = read_be16(transport + 4U);
+            if (udp_size < 8U) {
+                return false;
+            }
+            if (more_fragments) {
+                payload_size = static_cast<std::uint32_t>(
+                    logical_transport_size - 8U);
+            } else {
+                if (logical_transport_size < udp_size) {
+                    return false;
+                }
+                payload_size = static_cast<std::uint32_t>(udp_size - 8U);
+            }
+        } else if (protocol == 1U) {
+            constexpr std::size_t icmp_header_size = 8U;
+            if (captured_transport_size < icmp_header_size ||
+                logical_transport_size < icmp_header_size) {
+                return false;
+            }
+            payload_size = static_cast<std::uint32_t>(
+                logical_transport_size - icmp_header_size);
+        } else {
             return false;
         }
 
         if (more_fragments) {
             fragment_flows[fragment_key] = key;
         }
-        flows[key].add(ip[8], fragmented, payload_size, is_tcp, tcp_window,
-                       tcp_sequence, sequence_span);
+        flows[key].add(ip[8], fragmented, payload_size, capture_truncated,
+                       is_tcp, tcp_window, tcp_sequence, sequence_span);
+        scan_detector.observe(key);
         return true;
     }
 };
@@ -300,6 +582,9 @@ bool FeatureExtractor::open(const std::string& pcap_path) {
     impl_->error.clear();
     impl_->reached_eof = true;
     impl_->link_type = 0U;
+    impl_->pcapng = false;
+    impl_->interface_link_types.clear();
+    impl_->interface_snap_lengths.clear();
     impl_->fragment_flows.clear();
     impl_->stream.open(pcap_path, std::ios::binary);
     if (!impl_->stream) {
@@ -307,6 +592,33 @@ bool FeatureExtractor::open(const std::string& pcap_path) {
         return false;
     }
 
+    std::array<std::uint8_t, 12> probe{};
+    if (!impl_->stream.read(reinterpret_cast<char*>(probe.data()), probe.size())) {
+        impl_->error = "Capture header is missing or truncated";
+        return false;
+    }
+    const std::array<std::uint8_t, 4> probe_magic{
+        probe[0], probe[1], probe[2], probe[3]};
+    if (probe_magic ==
+        std::array<std::uint8_t, 4>{0x0A, 0x0D, 0x0D, 0x0A}) {
+        const std::array<std::uint8_t, 4> byte_order_magic{
+            probe[8], probe[9], probe[10], probe[11]};
+        if (byte_order_magic !=
+                std::array<std::uint8_t, 4>{0x4D, 0x3C, 0x2B, 0x1A} &&
+            byte_order_magic !=
+                std::array<std::uint8_t, 4>{0x1A, 0x2B, 0x3C, 0x4D}) {
+            impl_->error = "Invalid PCAPNG byte-order magic";
+            return false;
+        }
+        impl_->stream.clear();
+        impl_->stream.seekg(0);
+        impl_->pcapng = true;
+        impl_->reached_eof = false;
+        return true;
+    }
+
+    impl_->stream.clear();
+    impl_->stream.seekg(0);
     std::array<std::uint8_t, 24> header{};
     if (!impl_->stream.read(reinterpret_cast<char*>(header.data()), header.size())) {
         impl_->error = "PCAP global header is missing or truncated";
@@ -337,55 +649,80 @@ bool FeatureExtractor::open(const std::string& pcap_path) {
     return true;
 }
 
-std::vector<FlowFeatures> FeatureExtractor::extract_next_batch_features(
-    std::size_t max_packets) {
-    std::vector<FlowFeatures> results;
+ExtractionBatch FeatureExtractor::extract_next_batch_analysis(
+    std::size_t max_packets,
+    PortScanConfig scan_config) {
+    ExtractionBatch batch;
     if (!impl_->stream.is_open() || impl_->reached_eof || max_packets == 0U) {
-        return results;
+        return batch;
     }
 
     std::map<FlowKey, RunningAggregate> flows;
+    PortScanDetector scan_detector(scan_config);
     std::size_t records_read = 0U;
     while (records_read < max_packets) {
-        std::array<std::uint8_t, 16> record_header{};
-        impl_->stream.read(reinterpret_cast<char*>(record_header.data()),
-                           record_header.size());
-        const std::streamsize header_bytes = impl_->stream.gcount();
-        if (header_bytes == 0 && impl_->stream.eof()) {
-            impl_->reached_eof = true;
-            impl_->stream.clear();
-            break;
-        }
-        if (header_bytes != static_cast<std::streamsize>(record_header.size())) {
-            impl_->error = "Truncated PCAP packet header";
-            impl_->reached_eof = true;
-            break;
-        }
+        std::vector<std::uint8_t> packet;
+        std::uint32_t captured_size = 0U;
+        std::uint32_t original_size = 0U;
+        std::uint32_t packet_link_type = impl_->link_type;
 
-        const std::uint32_t captured_size =
-            read_u32(record_header.data() + 8U, impl_->little_endian);
-        if (captured_size > kMaxCapturedPacketBytes) {
-            impl_->error = "PCAP packet exceeds the 64 MiB safety limit";
-            impl_->reached_eof = true;
-            break;
-        }
-
-        std::vector<std::uint8_t> packet(captured_size);
-        if (!impl_->stream.read(reinterpret_cast<char*>(packet.data()),
-                                static_cast<std::streamsize>(packet.size()))) {
-            impl_->error = "Truncated PCAP packet payload";
-            impl_->reached_eof = true;
-            break;
+        if (impl_->pcapng) {
+            if (!impl_->read_next_pcapng_packet(
+                    packet, original_size, packet_link_type)) {
+                break;
+            }
+            captured_size = static_cast<std::uint32_t>(packet.size());
+        } else {
+            std::array<std::uint8_t, 16> record_header{};
+            impl_->stream.read(reinterpret_cast<char*>(record_header.data()),
+                               record_header.size());
+            const std::streamsize header_bytes = impl_->stream.gcount();
+            if (header_bytes == 0 && impl_->stream.eof()) {
+                impl_->reached_eof = true;
+                impl_->stream.clear();
+                break;
+            }
+            if (header_bytes !=
+                static_cast<std::streamsize>(record_header.size())) {
+                impl_->error = "Truncated PCAP packet header";
+                impl_->reached_eof = true;
+                break;
+            }
+            captured_size =
+                read_u32(record_header.data() + 8U, impl_->little_endian);
+            original_size =
+                read_u32(record_header.data() + 12U, impl_->little_endian);
+            if (captured_size > kMaxCapturedPacketBytes) {
+                impl_->error = "PCAP packet exceeds the 64 MiB safety limit";
+                impl_->reached_eof = true;
+                break;
+            }
+            packet.resize(captured_size);
+            if (!impl_->stream.read(
+                    reinterpret_cast<char*>(packet.data()),
+                    static_cast<std::streamsize>(packet.size()))) {
+                impl_->error = "Truncated PCAP packet payload";
+                impl_->reached_eof = true;
+                break;
+            }
         }
         ++records_read;
-        impl_->parse_packet(packet, flows);
+        impl_->parse_packet(packet, packet_link_type,
+                            captured_size < original_size, flows,
+                            scan_detector);
     }
 
-    results.reserve(flows.size());
+    batch.flows.reserve(flows.size());
     for (const auto& entry : flows) {
-        results.push_back(finish(entry.first, entry.second));
+        batch.flows.push_back(finish(entry.first, entry.second));
     }
-    return results;
+    batch.port_scans = scan_detector.results();
+    return batch;
+}
+
+std::vector<FlowFeatures> FeatureExtractor::extract_next_batch_features(
+    std::size_t max_packets) {
+    return extract_next_batch_analysis(max_packets).flows;
 }
 
 std::vector<std::uint8_t> FeatureExtractor::extract_next_batch() {
@@ -408,6 +745,7 @@ std::vector<std::uint8_t> FeatureExtractor::extract_next_batch() {
              << ",\"tcp_window_trend\":" << value.tcp_window_trend
              << ",\"fragment_count\":" << value.fragment_count
              << ",\"retransmission_count\":" << value.retransmission_count
+             << ",\"truncated_packet_count\":" << value.truncated_packet_count
              << ",\"payload_size_mean\":" << value.payload_size_mean
              << ",\"payload_size_stddev\":" << value.payload_size_stddev
              << ",\"payload_size_skew\":" << value.payload_size_skew << '}';

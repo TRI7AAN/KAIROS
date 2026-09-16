@@ -24,14 +24,25 @@ clear "done" state before moving on. Tackle one at a time.
   downloaded and verified by byte size, SHA-256, row count, and label
   distribution. Attack windows and known source anomalies are versioned in the
   dataset manifest.
-- **Phase 3: in progress.** The matching raw objects are inventoried: 166.93 GiB
-  compressed across four days, with the smallest full day at 37.17 GiB. Choose
-  a storage/bandwidth-bounded capture strategy before downloading.
-- **Phase 4: complete.** The dependency-free C++17 core parses classic PCAP
-  Ethernet/raw-IPv4 traffic, aggregates directional TCP/UDP 5-tuples, and
-  computes TTL, TCP-window, fragmentation, retransmission, and payload moments.
-  A sanitizer-enabled deterministic synthetic-PCAP smoke test passes.
-- **Phase 5: next.** Add the per-source port-scan signature detector.
+- **Phase 3: complete.** The official CTU-13 Scenario 6 privacy-preserving
+  truncated capture is downloaded, checksum-verified, and extracted (575 MiB
+  compressed; 3.06 GiB PCAPNG). It is excluded from zero-shot scoring.
+- **Phase 4: complete.** The dependency-free C++17 core parses classic PCAP and
+  PCAPNG Ethernet/raw-IPv4 traffic, aggregates TCP/UDP/ICMP flows, reconstructs
+  logical payload lengths from retained headers, and reports truncation. Both
+  sanitizer tests and a complete 17,412,467-supported-packet scan pass.
+- **Phase 5: complete.** A callable, per-window detector counts unique destination
+  ports per source IP and classifies threshold-crossing first-seen port sequences
+  as sequential or randomized. Config validation, reset behavior, duplicate-port
+  handling, and real CTU-13 batch integration are verified.
+- **Phase 6: complete.** Persistent CTest coverage uses a deterministic known
+  PCAP, and CMake builds a position-independent JNI shared library alongside the
+  static extractor.
+- **Phase 7: complete.** The typed Java bridge loads the native library and
+  returns C++ flow and port-scan records. An exact Java-to-C++ round-trip passes.
+- **Phase 8: complete.** CICFlowMeter ingestion is streaming, normalizes headers
+  and labels, drops metadata, sanitizes numeric values, and attaches timeline stages.
+- **Phase 9: next.** Add time windows and per-host aggregation. Work is stopped here.
 
 ---
 
@@ -41,7 +52,7 @@ clear "done" state before moving on. Tackle one at a time.
 
 **Phase 2 — CIC-IDS2018 acquisition.** Download processed CSVs via `aws s3 sync --no-sign-request`; select 3-4 attack days (brute-force, DoS/DDoS, infiltration, botnet) per the published schedule; verify row counts.
 
-**Phase 3 — Raw PCAP subset pull.** Sync matching raw PCAP folders for the same selected days; confirm file sizes are reasonable before parsing.
+**Phase 3 — Bounded raw-capture acquisition.** Download and verify the CTU-13 Scenario 6 truncated complete-traffic capture; reserve Scenario 6 for extractor development and exclude it from zero-shot evaluation.
 
 **Phase 4 — C++ packet-level feature extractor core.** Implement `feature_extractor.cpp`/`.hpp`: parse PCAPs, compute TTL mean/variance, TCP window size trend, IP fragment flag count, retransmission count, payload size mean/std/skew per 5-tuple flow.
 

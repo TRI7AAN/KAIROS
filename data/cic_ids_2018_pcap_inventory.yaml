@@ -2,6 +2,8 @@ dataset: CSE-CIC-IDS2018
 source:
   bucket: https://cse-cic-ids2018.s3.amazonaws.com/
 inventoried_on: 2026-09-16
+status: superseded
+superseded_by: data/ctu13_scenario6_manifest.yaml
 units: GiB values use 2^30 bytes
 
 summary:
@@ -9,8 +11,8 @@ summary:
   selected_pcap_gib: 166.93
   smallest_full_day_gib: 37.17
   decision: >-
-    Do not download automatically. Even the smallest matching capture is a
-    37.17 GiB compressed archive and needs additional extraction space.
+    CIC raw captures were not downloaded. Phase 3 now uses the bounded,
+    privacy-preserving CTU-13 Scenario 6 truncated capture instead.
 
 files:
   - date: Wednesday-14-02-2018

@@ -106,9 +106,19 @@ Raw PCAP / CSV
 The versioned manifest records exact object sizes, SHA-256 checksums, row counts,
 label counts, attack windows, and known source anomalies.
 
-**CTU-13 (zero-shot generalization holdout)** — stratosphereips.org/datasets-ctu13. Thirteen real botnet-capture scenarios (Neris, Rbot, Virut families). Never used in training; used only for frozen-model inference and generalization-gap analysis. Download per scenario from the dataset page.
+**CTU-13** — stratosphereips.org/datasets-ctu13. Scenario 6 (capture 47,
+DonBot) is the bounded packet-extractor development capture and is excluded from
+zero-shot scoring. The remaining untouched scenarios are available for frozen-model
+generalization evaluation. Download and verify Scenario 6 with:
 
-**Raw PCAP note:** only 2–4 attack days' raw PCAPs (DoS, brute-force, botnet, infiltration, matching the selected processed-CSV days) should be pulled for packet-level feature extraction — not the full multi-hundred-GB raw set. Confirm synced PCAP file sizes are sane before parsing.
+```bash
+./scripts/download_ctu13_scenario6.sh
+```
+
+**Raw PCAP note:** Phase 3 uses CTU-13 Scenario 6's privacy-preserving truncated
+complete-traffic capture (575 MiB compressed, 3.06 GiB extracted). Its TCP, UDP,
+and ICMP headers are retained while payload content is removed. The previously
+inventoried CIC raw days remain deliberately undownloaded at 37–50 GiB each.
 
 ## Repository Structure
 
@@ -117,9 +127,9 @@ network-world-model/
 ├── cpp-engine/                  # C++ packet-level feature extraction
 │   ├── CMakeLists.txt           # minimal CMake (C++17), static lib target
 │   ├── include/
-│   │   └── feature_extractor.hpp   # FeatureExtractor class declaration stub
+│   │   └── feature_extractor.hpp   # typed flow-feature API
 │   ├── src/
-│   │   └── feature_extractor.cpp   # stub implementation
+│   │   └── feature_extractor.cpp   # classic-PCAP/PCAPNG parser + aggregation
 │   └── tests/
 │       └── .gitkeep
 ├── java-engine/                 # Java base orchestration engine
@@ -171,13 +181,15 @@ network-world-model/
 │   ├── raw/                     # raw inputs (gitignored, .gitkeep kept)
 │   ├── processed/               # parsed outputs (gitignored, .gitkeep kept)
 │   ├── cic_ids_2018_manifest.yaml # verified selected-day metadata
-│   └── cic_ids_2018_pcap_inventory.yaml # raw-capture storage inventory
+│   ├── cic_ids_2018_pcap_inventory.yaml # superseded raw-capture inventory
+│   └── ctu13_scenario6_manifest.yaml # selected PCAPNG metadata + validation
 ├── results/                     # benchmark artifacts (gitignored, .gitkeep kept)
 ├── docs/
 │   ├── architecture.md          # standalone architecture + inter-service reference
 │   └── implementationplan.md    # canonical 65-phase deliverable list
 ├── scripts/
-│   └── download_cic_ids_2018.sh # resumable, checksum-verifying downloader
+│   ├── download_cic_ids_2018.sh # verified processed-CSV downloader
+│   └── download_ctu13_scenario6.sh # verified capture downloader/extractor
 ├── .gitignore                   # C++/Java/Python/Node/data/weights/results/.env excludes
 └── README.md                    # this file
 ```
@@ -377,12 +389,33 @@ DoS, infiltration, and botnet) are downloaded and verified by exact byte size,
 SHA-256, row count, and label distribution. Their attack windows and source-data
 anomalies are recorded in the manifest.
 
-Phase 3 in progress - the matching raw PCAP objects are inventoried. The four
-compressed captures total 166.93 GiB and the smallest full day is 37.17 GiB, so
-the download is intentionally waiting for an explicit storage/bandwidth choice.
+Phase 3 complete - the official CTU-13 Scenario 6 truncated complete-traffic
+capture is downloaded, checksum-verified, and extracted. The 575 MiB archive
+expands to a 3.06 GiB PCAPNG file; Scenario 6 is excluded from zero-shot scoring.
 
-Phase 4 complete - the C++17 extractor now parses classic PCAP Ethernet and
-raw-IPv4 packets, groups directional TCP/UDP 5-tuples, and calculates TTL
-mean/variance, TCP-window trend, fragment count, retransmission count, and
-payload mean/stddev/skew. Its deterministic sanitizer-enabled smoke test passes.
-Work stops here before Phase 5 as planned.
+Phase 4 complete and normalized for that capture - the C++17 extractor parses
+classic PCAP and PCAPNG Ethernet/raw-IPv4 traffic, groups TCP/UDP/ICMP flows,
+reconstructs logical payload lengths from retained headers, and reports
+truncated-packet counts. A full 3.28 GB scan completed without errors: 17,412,467
+supported packets across 1,976,965 emitted batch-flow records.
+
+Phase 5 complete - each extraction window now counts unique destination ports per
+source IP and classifies threshold-crossing activity as sequential or randomized
+using first-seen port order. Thresholds are configurable, the detector is callable
+standalone or through `extract_next_batch_analysis`, and sanitizer plus real CTU-13
+integration tests pass.
+
+Phase 6 complete - CTest now exercises the extractor and port-scan detector
+against a deterministic raw-IPv4 PCAP fixture. CMake produces both the static
+core and the position-independent `libkairos_native.so` shared library (or the
+platform-equivalent DLL/dylib) with exported JNI entry points.
+
+Phase 7 complete - `CppBridge.java` loads the native library, validates call
+parameters, invokes C++ through JNI, and deserializes typed flow and port-scan
+records. A Java-to-C++ round-trip test verifies exact TTL and payload statistics.
+
+Phase 8 complete - `IngestionService.java` streams CICFlowMeter CSV rows,
+normalizes headers and the known `Infilteration` label anomaly, drops metadata,
+sanitizes missing/NaN/Infinity/out-of-range numeric values, and assigns attack
+stages from the published CIC-IDS2018 timelines. Tests include the real 613,104-row
+infiltration file and its 33 repeated header rows. Work is stopped before Phase 9.

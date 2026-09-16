@@ -1,0 +1,50 @@
+dataset: CTU-13-Extended
+scenario: 6
+capture_id: CTU-Malware-Capture-Botnet-47
+malware: DonBot
+license: CC-BY
+selected_for: packet-extractor development and validation
+exclude_from_zero_shot_holdout: true
+verified_on: 2026-09-16
+
+source:
+  dataset_page: https://www.stratosphereips.org/datasets-ctu13
+  scenario_page: https://mcfp.felk.cvut.cz/publicDatasets/CTU-Malware-Capture-Botnet-47/
+  download_url: https://mcfp.felk.cvut.cz/publicDatasets/CTU-Malware-Capture-Botnet-47/capture20110816.truncated.pcap.bz2
+
+capture:
+  archive_file: capture20110816.truncated.pcap.bz2
+  archive_bytes: 602748112
+  archive_sha256: 3a32c85783a773867c96f2988701b81b267cda4648bf174890f4bbd43c518be5
+  extracted_file: capture20110816.truncated.pcap
+  extracted_bytes: 3284726956
+  extracted_sha256: 19ea13096693f4d81acd36fd24897084f3ef702f9b4fa96ee7bd785209f9e7af
+  actual_format: pcapng-1.0
+  duration: "02:09:00"
+  infected_host: 147.32.84.165
+
+truncation:
+  tcp_captured_bytes: 54
+  udp_captured_bytes: 42
+  icmp_captured_bytes: 66
+  payload_policy: Headers are retained; packet payload content is removed.
+  normalization: >-
+    Phase 4 reconstructs logical payload lengths from IPv4 and transport
+    length headers and reports truncated_packet_count for data-quality checks.
+
+labels:
+  embedded_in_capture: false
+  policy: >-
+    Join later against the official detailed bidirectional flow labels.
+    From-Botnet is malicious; To-Botnet alone is not malicious per se.
+
+phase4_full_scan:
+  batches_of_100000: 388
+  emitted_flow_records: 1976965
+  supported_packets: 17412467
+  truncated_supported_packets: 17411702
+  icmp_packets: 47251
+  tcp_packets: 7206531
+  udp_packets: 10158685
+  elapsed_seconds: 41.21
+  max_rss_kib: 8364
