@@ -1,0 +1,128 @@
+{
+  "split": {
+    "method": "per_day_final_20pct_time_holdout",
+    "description": "per-day first-80% train / last-20% val across day14/day15/day28/day0302; identical windows to the Phase 32 world-model in-distribution control",
+    "train_windows": 10560,
+    "test_windows": 2642,
+    "per_day": [
+      {
+        "day": "day14.json",
+        "train": 2602,
+        "val": 651
+      },
+      {
+        "day": "day15.json",
+        "train": 2730,
+        "val": 683
+      },
+      {
+        "day": "day28.json",
+        "train": 2714,
+        "val": 679
+      },
+      {
+        "day": "day0302.json",
+        "train": 2514,
+        "val": 629
+      }
+    ]
+  },
+  "binary": {
+    "precision": 0.6214642262895175,
+    "recall": 0.7374136229022705,
+    "f1": 0.6744920993227991,
+    "false_positive_rate": 0.27931246163290363,
+    "confusion_matrix": [
+      [
+        1174,
+        455
+      ],
+      [
+        266,
+        747
+      ]
+    ],
+    "early_warning_lead_time_seconds": null,
+    "early_warning_note": "Not applicable to a non-temporal baseline.",
+    "training_seconds": 15.320320803999948,
+    "converged": true,
+    "iterations": [
+      388
+    ]
+  },
+  "stage": {
+    "class_names": [
+      "RECONNAISSANCE",
+      "INITIAL_ACCESS",
+      "LATERAL_MOVEMENT",
+      "COMMAND_AND_CONTROL",
+      "EXFILTRATION",
+      "IMPACT"
+    ],
+    "evaluated_malicious_windows": 1013,
+    "macro_precision": 0.47715672964932976,
+    "macro_recall": 0.49010673813890065,
+    "macro_f1": 0.48280901643785684,
+    "confusion_matrix": [
+      [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        681,
+        0,
+        14,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        114,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        5,
+        0,
+        3,
+        0,
+        196
+      ]
+    ],
+    "training_seconds": 2.4574057079998965,
+    "converged": true,
+    "iterations": [
+      70
+    ]
+  },
+  "artifact": {
+    "version": "kairos.baseline.v1",
+    "source_contract_version": "kairos.sequence.v1",
+    "random_state": 42,
+    "note": "Identical-split rerun of the frozen baseline logic for a valid head-to-head with the Phase 32 world-model control. Frozen baseline code untouched (git diff baseline-v1 -- python-ml/baseline/ stays empty); canonical frozen numbers remain in results/baseline_metrics.json."
+  }
+}

@@ -1395,5 +1395,23 @@
       "data/processed/graph_contracts/day0302.json"
     ],
     "note": "Joined-contract run: 13,202 windows; strict final-20pct time holdout. Same contracts as Fix 3 (which uses whole-day0302 validation). See data/cic_ids_2018_manifest.yaml downsampling entry."
+  },
+  "comparison": {
+    "in_distribution_validation_primary": {
+      "split": "per-day final-20%-time holdout, 10,560 train / 2,642 val; results/baseline_metrics_indist.json",
+      "baseline_binary": {
+        "f1": 0.6744920993227991,
+        "precision": 0.6214642262895175,
+        "recall": 0.7374136229022705,
+        "false_positive_rate": 0.27931246163290363
+      },
+      "baseline_stage_macro_f1": 0.48280901643785684,
+      "world_model_control_10s_K5_GNN": "see results/phase32_step0.json"
+    },
+    "cross_day_generalization_stress_test_secondary": {
+      "split": "whole day0302 held out; world-model control in results/phase32_step0.json; frozen baseline numbers above use a joined final-20% holdout inside day0302",
+      "note": "Cross-day numbers are a generalization stress test, not the head-to-head metric set."
+    },
+    "note": "Baseline and world model now share one identical in-distribution split for a valid head-to-head. Frozen metric values above this key are unchanged."
   }
 }

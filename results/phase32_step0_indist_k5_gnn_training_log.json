@@ -1,0 +1,28 @@
+{
+  "tag": "step0_indist_k5_gnn",
+  "encoder": "gnn",
+  "train_windows": 10560,
+  "validation_windows": 2642,
+  "epochs": 5,
+  "chunk_length": 64,
+  "learning_rate": 0.001,
+  "random_seed": 42,
+  "training_loss": [
+    0.24751927836195511,
+    0.14727196180645158,
+    0.12826355886371696,
+    0.11800227086881504,
+    0.11018853776485604
+  ],
+  "validation_loss": [
+    1.856729436752408,
+    1.6778845932594566,
+    1.7459982106851977,
+    0.9461641159168509,
+    0.8119213350637015
+  ],
+  "best_epoch": 4,
+  "best_validation_loss": 0.8119213350637015,
+  "checkpoint": "python-ml/weights/world_model_v1.pt",
+  "elapsed_seconds": 9.860424280166626
+}
