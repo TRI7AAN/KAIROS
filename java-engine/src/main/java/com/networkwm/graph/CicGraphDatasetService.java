@@ -73,6 +73,20 @@ public final class CicGraphDatasetService {
         return accumulator.finish(contract);
     }
 
+    /** Stream one CIC CSV directly into an in-memory inference contract. */
+    public GraphSequence aggregateCsv(
+            Path csvFile,
+            Duration windowSize) throws IOException {
+        Objects.requireNonNull(csvFile, "csvFile");
+        Accumulator accumulator = new Accumulator(windowSize);
+        ingestion.ingest(
+                csvFile,
+                IngestionService.cicIds2018Timelines(),
+                accumulator::accept);
+        return accumulator.finish(contract);
+    }
+
+
     private static final class Accumulator {
         private final long windowSeconds;
         private final Map<Instant, WindowStatistics> windows = new TreeMap<>();

@@ -3,13 +3,17 @@ package com.networkwm.api;
 import com.networkwm.bridge.PythonMlClient;
 import com.networkwm.bridge.PythonMlClient.PredictionResponse;
 import com.networkwm.graph.GraphContractService.GraphSequence;
-import com.networkwm.narrative.LocalNarrativeService;
+import com.networkwm.narrative.NarrativeModeService;
 import com.networkwm.narrative.LocalNarrativeService.Narrative;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.io.IOException;
@@ -17,16 +21,23 @@ import java.util.Objects;
 
 /** Public Java boundary for validated graph forecasts. */
 @RestController
+@CrossOrigin(origins = {
+        "http://localhost:3000",
+        "http://127.0.0.1:3000"
+})
 @RequestMapping("/forecast")
 public final class ForecastController {
     private final PythonMlClient python;
-    private final LocalNarrativeService narratives;
+    private final NarrativeModeService narratives;
+    private final UploadGraphService uploads;
 
     public ForecastController(
             PythonMlClient python,
-            LocalNarrativeService narratives) {
+            NarrativeModeService narratives,
+            UploadGraphService uploads) {
         this.python = Objects.requireNonNull(python, "python");
         this.narratives = Objects.requireNonNull(narratives, "narratives");
+        this.uploads = Objects.requireNonNull(uploads, "uploads");
     }
 
     @PostMapping
@@ -50,6 +61,27 @@ public final class ForecastController {
             throw new ResponseStatusException(
                     HttpStatus.BAD_GATEWAY,
                     "Python ML service unavailable or returned invalid data",
+                    error);
+        }
+    }
+
+    @PostMapping(
+            path = "/upload",
+            consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ForecastResponse forecastUpload(
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "rolloutSteps", defaultValue = "3")
+                    int rolloutSteps) {
+        try {
+            GraphSequence contract = uploads.fromUpload(file);
+            return forecast(new ForecastRequest(contract, rolloutSteps));
+        } catch (IllegalArgumentException error) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST, error.getMessage(), error);
+        } catch (IOException error) {
+            throw new ResponseStatusException(
+                    HttpStatus.UNPROCESSABLE_ENTITY,
+                    "Unable to ingest uploaded traffic file",
                     error);
         }
     }

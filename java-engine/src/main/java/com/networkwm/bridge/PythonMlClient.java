@@ -3,6 +3,8 @@ package com.networkwm.bridge;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.networkwm.graph.GraphContractService.GraphSequence;
 import okhttp3.HttpUrl;
 import okhttp3.MediaType;
@@ -38,7 +40,10 @@ public final class PythonMlClient {
                         .writeTimeout(Duration.ofSeconds(10))
                         .callTimeout(Duration.ofSeconds(15))
                         .build(),
-                new ObjectMapper());
+                new ObjectMapper()
+                        .registerModule(new JavaTimeModule())
+                        .disable(
+                                SerializationFeature.WRITE_DATES_AS_TIMESTAMPS));
     }
 
     public PythonMlClient(
