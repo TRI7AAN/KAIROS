@@ -64,12 +64,10 @@ class FlatWindowEncoder(nn.Module):
 
 
 def _summary(values: torch.Tensor) -> list[float]:
-    out: list[float] = []
-    for column in values.T:
-        out.extend([
-            float(column.mean()),
-            float(column.std(unbiased=False)),
-            float(column.max()),
-            float(column.sum()),
-        ])
-    return out
+    statistics = torch.stack((
+        values.mean(dim=0),
+        values.std(dim=0, unbiased=False),
+        values.max(dim=0).values,
+        values.sum(dim=0),
+    ), dim=1)
+    return statistics.flatten().tolist()

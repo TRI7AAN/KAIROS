@@ -1,0 +1,41 @@
+{
+  "artifact_version": "kairos.phase36.v1",
+  "method": "Manual day/family mapping audit against every 10-second contract label. Timeline boundaries are minute-aligned and therefore exact multiples of the selected 10-second window.",
+  "expected_stage_by_day": {
+    "day14.json": [
+      "INITIAL_ACCESS"
+    ],
+    "day15.json": [
+      "IMPACT"
+    ],
+    "day28.json": [
+      "INITIAL_ACCESS"
+    ],
+    "day0302.json": [
+      "COMMAND_AND_CONTROL"
+    ]
+  },
+  "stage_counts": {
+    "day14.json": {
+      "NONE": 2685,
+      "INITIAL_ACCESS": 575
+    },
+    "day15.json": {
+      "NONE": 3100,
+      "IMPACT": 329
+    },
+    "day28.json": {
+      "NONE": 2956,
+      "INITIAL_ACCESS": 450
+    },
+    "day0302.json": {
+      "NONE": 2658,
+      "COMMAND_AND_CONTROL": 485
+    }
+  },
+  "ambiguous_or_mismatched_windows": [],
+  "relabel_overrides": [],
+  "corrections_applied": 0,
+  "result": "no_ambiguous_labels_found",
+  "note": "No labels were silently changed. Raw attack labels must match the published attack timeline in Java before a malicious stage is assigned, and no selected-day contract contains an unexpected stage."
+}

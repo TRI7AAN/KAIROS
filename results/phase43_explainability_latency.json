@@ -1,0 +1,10 @@
+{
+  "runs": 30,
+  "min_ms": 140.32134000035512,
+  "median_ms": 143.39028549989052,
+  "p95_ms": 153.3700408000641,
+  "max_ms": 169.47139100011555,
+  "target_ms": 2000.0,
+  "passes_under_2_seconds": true,
+  "scope": "TreeSHAP attribution plus Phase 42 JSON construction for one already-tensorized forecast window; model inference is measured separately by the Phase 44 endpoint."
+}

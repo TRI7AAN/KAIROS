@@ -84,6 +84,7 @@ def joint_world_model_loss(
     dynamics_weight: float = 1.0,
     infiltration_weight: float = 1.0,
     stage_weight: float = 1.0,
+    binary_focal_alpha: float = 0.25,
     focal_gamma: float = 2.0,
 ) -> JointLoss:
     dynamics = F.mse_loss(predicted_states, target_states)
@@ -91,6 +92,7 @@ def joint_world_model_loss(
         outputs["infiltration_logits"],
         infiltration_targets,
         gamma=focal_gamma,
+        alpha=binary_focal_alpha,
     )
     stage = multiclass_focal_loss(
         outputs["stage_logits"],

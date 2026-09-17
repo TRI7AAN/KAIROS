@@ -1,0 +1,125 @@
+{
+  "artifact_version": "kairos.phase35.v1",
+  "class_names": [
+    "RECONNAISSANCE",
+    "INITIAL_ACCESS",
+    "LATERAL_MOVEMENT",
+    "COMMAND_AND_CONTROL",
+    "EXFILTRATION",
+    "IMPACT"
+  ],
+  "confusion_matrix_rows_actual_columns_predicted": [
+    [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      697,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      113,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      206,
+      0,
+      0
+    ]
+  ],
+  "per_class": [
+    {
+      "class": "RECONNAISSANCE",
+      "support": 0,
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "correct": 0
+    },
+    {
+      "class": "INITIAL_ACCESS",
+      "support": 697,
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "correct": 0
+    },
+    {
+      "class": "LATERAL_MOVEMENT",
+      "support": 0,
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "correct": 0
+    },
+    {
+      "class": "COMMAND_AND_CONTROL",
+      "support": 113,
+      "precision": 0.11122047244094488,
+      "recall": 1.0,
+      "f1": 0.20017714791851196,
+      "correct": 113
+    },
+    {
+      "class": "EXFILTRATION",
+      "support": 0,
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "correct": 0
+    },
+    {
+      "class": "IMPACT",
+      "support": 206,
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "correct": 0
+    }
+  ],
+  "largest_confusions": [
+    {
+      "actual": "INITIAL_ACCESS",
+      "predicted": "COMMAND_AND_CONTROL",
+      "count": 697
+    },
+    {
+      "actual": "IMPACT",
+      "predicted": "COMMAND_AND_CONTROL",
+      "count": 206
+    }
+  ],
+  "worst_supported_class": "INITIAL_ACCESS",
+  "diagnosis": "Stage-head quality is substantially below the frozen logistic baseline. Error concentration and missing-class coverage must be resolved in Phases 36-38 before stage forecasts are demo-ready."
+}

@@ -44,6 +44,13 @@ from training.world_model_trainer import (
 
 DAY_NAMES = ["day14.json", "day15.json", "day28.json", "day0302.json"]
 CONTRACT_DIR = REPO_ROOT / "data" / "processed" / "graph_contracts"
+CONTRACT_ALIASES = {
+    "day14.json": "cic-2018-02-14-10s.json",
+    "day15.json": "cic-2018-02-15-10s.json",
+    "day28.json": "cic-2018-02-28-10s.json",
+    "day0302.json": "cic-2018-03-02-10s.json",
+}
+
 CLASS_NAMES = ["RECONNAISSANCE", "INITIAL_ACCESS", "LATERAL_MOVEMENT",
                "COMMAND_AND_CONTROL", "EXFILTRATION", "IMPACT"]
 
@@ -65,8 +72,21 @@ def tail_count(n: int, fraction: float = 0.2) -> int:
     return math.ceil(n * fraction)
 
 
+def resolve_contract_path(name: str) -> Path:
+    """Resolve both the legacy ignored directory and clean-clone filenames."""
+    candidates = (
+        CONTRACT_DIR / name,
+        REPO_ROOT / "data" / "processed" / CONTRACT_ALIASES[name],
+    )
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate
+    rendered = " or ".join(str(path) for path in candidates)
+    raise FileNotFoundError(f"missing graph contract: expected {rendered}")
+
+
 def build_splits():
-    sequences = {name: load_graph_sequence(CONTRACT_DIR / name)
+    sequences = {name: load_graph_sequence(resolve_contract_path(name))
                  for name in DAY_NAMES}
     schemas = {(tuple(s.node_feature_names), tuple(s.edge_feature_names))
                for s in sequences.values()}
@@ -121,7 +141,12 @@ def make_model(node_dim: int, edge_dim: int, encoder: str = "gnn",
 
 
 def train_variant(tag: str, train_graphs, val_graphs, encoder: str,
-                  checkpoint_name: str, plot_title: str) -> dict:
+                  checkpoint_name: str, plot_title: str, *,
+                  dynamics_weight: float = 1.0,
+                  infiltration_weight: float = 1.0,
+                  stage_weight: float = 1.0,
+                  infiltration_alpha: float = 0.25) -> dict:
+    torch.manual_seed(RANDOM_SEED)
     model = make_model(len(train_graphs_schema[0]), len(train_graphs_schema[1]),
                        encoder=encoder)
     started = time.time()
@@ -129,7 +154,11 @@ def train_variant(tag: str, train_graphs, val_graphs, encoder: str,
         model, train_graphs, val_graphs,
         config=WorldModelTrainingConfig(
             epochs=EPOCHS, chunk_length=CHUNK_LENGTH,
-            learning_rate=LEARNING_RATE, random_seed=RANDOM_SEED),
+            learning_rate=LEARNING_RATE, random_seed=RANDOM_SEED,
+            dynamics_weight=dynamics_weight,
+            infiltration_weight=infiltration_weight,
+            stage_weight=stage_weight,
+            infiltration_alpha=infiltration_alpha),
         checkpoint_path=REPO_ROOT / "python-ml" / "weights" / checkpoint_name,
         config_path=REPO_ROOT / "results" / f"phase32_{tag}_config.json",
         history_path=REPO_ROOT / "results" / f"phase32_{tag}_history.json",
@@ -155,6 +184,12 @@ def train_variant(tag: str, train_graphs, val_graphs, encoder: str,
         "chunk_length": CHUNK_LENGTH,
         "learning_rate": LEARNING_RATE,
         "random_seed": RANDOM_SEED,
+        "loss_weights": {
+            "dynamics": dynamics_weight,
+            "infiltration": infiltration_weight,
+            "stage": stage_weight,
+            "infiltration_alpha": infiltration_alpha,
+        },
         "training_loss": list(history.training_loss),
         "validation_loss": list(history.validation_loss),
         "best_epoch": history.best_epoch,
@@ -170,7 +205,7 @@ def train_variant(tag: str, train_graphs, val_graphs, encoder: str,
 train_graphs_schema: tuple = ((), ())
 
 
-def head_metrics(model, graphs):
+def head_metrics(model, graphs, threshold: float = THRESHOLD):
     chunk = 512
     inf_probs, stage_probs, targets, stage_targets = [], [], [], []
     with torch.no_grad():
@@ -190,7 +225,7 @@ def head_metrics(model, graphs):
     stage_prob = torch.cat(stage_probs)
     targets = torch.cat(targets)
     stage_targets = torch.cat(stage_targets)
-    pred = (inf_prob >= THRESHOLD).float()
+    pred = (inf_prob >= threshold).float()
     tp = int(((pred == 1) & (targets == 1)).sum())
     fp = int(((pred == 1) & (targets == 0)).sum())
     fn = int(((pred == 0) & (targets == 1)).sum())
@@ -201,7 +236,9 @@ def head_metrics(model, graphs):
     fpr = fp / (fp + tn) if fp + tn else 0.0
     auc_roc = _auc_roc(inf_prob.tolist(), targets.tolist())
     auc_pr = _auc_pr(inf_prob.tolist(), targets.tolist())
-    stage_pred = stage_prob.argmax(dim=-1)
+    malicious = stage_targets >= 0
+    stage_pred = stage_prob[malicious].argmax(dim=-1)
+    stage_targets = stage_targets[malicious]
     per_class, precisions, recalls, f1s = [], [], [], []
     for class_index in range(len(CLASS_NAMES)):
         mask = stage_targets == class_index
@@ -224,12 +261,10 @@ def head_metrics(model, graphs):
         precisions.append(precision_c)
         recalls.append(recall_c)
         f1s.append(f1_c)
-    attack_indices = [i for i, g in enumerate(graphs)
-                      if int(g.y_stage.item()) >= 0]
     macro_p = sum(precisions) / len(precisions)
     return {
         "windows_evaluated": len(graphs) - 1,
-        "infiltration": {"threshold": THRESHOLD, "tp": tp, "fp": fp, "fn": fn,
+        "infiltration": {"threshold": threshold, "tp": tp, "fp": fp, "fn": fn,
                          "tn": tn, "precision": precision, "recall": recall,
                          "f1": f1, "fpr": fpr, "auc_roc": auc_roc, "auc_pr": auc_pr,
                          "prob_mean": float(inf_prob.mean()),
@@ -238,24 +273,23 @@ def head_metrics(model, graphs):
         "stage": {"macro_precision": macro_p,
                   "macro_recall": sum(recalls) / len(recalls),
                   "macro_f1": sum(f1s) / len(f1s),
-                  "malicious_windows": len(attack_indices),
+                  "malicious_windows": int(malicious.sum()),
                   "per_class": per_class},
     }
 
 
 def _auc_roc(scores: list[float], labels: list[int]) -> float:
-    order = sorted(range(len(scores)), key=lambda i: scores[i])
-    ranked = [labels[i] for i in order]
-    positives = sum(ranked)
-    negatives = len(ranked) - positives
+    positives = sum(labels)
+    negatives = len(labels) - positives
     if not positives or not negatives:
         return 0.0
-    concordant, seen_positive = 0.0, 0
-    for label in ranked:
-        if label == 1:
-            seen_positive += 1
-        else:
-            concordant += seen_positive
+    concordant = 0.0
+    positive_scores = [score for score, label in zip(scores, labels) if label]
+    negative_scores = [score for score, label in zip(scores, labels) if not label]
+    for positive in positive_scores:
+        for negative in negative_scores:
+            concordant += float(positive > negative)
+            concordant += 0.5 * float(positive == negative)
     return concordant / (positives * negatives)
 
 
@@ -286,7 +320,8 @@ def attack_blocks(graphs):
     return [block for block in blocks if block[1] - block[0] >= 2]
 
 
-def rollout_lead(model, graphs, window_seconds: int, k: int):
+def rollout_lead(model, graphs, window_seconds: int, k: int,
+                 threshold: float = THRESHOLD):
     blocks = attack_blocks(graphs)
     picked = sorted(blocks, key=lambda b: b[1] - b[0], reverse=True)[:3]
     results = []
@@ -305,13 +340,13 @@ def rollout_lead(model, graphs, window_seconds: int, k: int):
                 mean_prob = float(
                     model.heads(rollout)["infiltration_probability"].mean())
                 curve.append({"lead_windows": lead, "mean_prob": mean_prob})
-                if mean_prob >= THRESHOLD and lead_windows is None:
+                if mean_prob >= threshold and lead_windows is None:
                     lead_windows = lead
             results.append({
                 "attack_start_window": attack_start,
                 "attack_end_window": attack_end,
                 "attack_length_windows": attack_end - attack_start + 1,
-                "threshold": THRESHOLD,
+                "threshold": threshold,
                 "rollout_k": k,
                 "lead_windows": lead_windows,
                 "lead_seconds": (lead_windows * window_seconds
@@ -322,14 +357,15 @@ def rollout_lead(model, graphs, window_seconds: int, k: int):
 
 
 def evaluate_checkpoint(checkpoint_rel: str, graphs, window_seconds: int,
-                        k: int, encoder: str, node_dim: int, edge_dim: int):
+                        k: int, encoder: str, node_dim: int, edge_dim: int,
+                        threshold: float = THRESHOLD):
     model = make_model(node_dim, edge_dim, encoder=encoder)
     payload = torch.load(REPO_ROOT / checkpoint_rel, map_location="cpu",
                          weights_only=False)
     model.load_state_dict(payload["model_state_dict"])
     model.eval()
-    metrics = head_metrics(model, graphs)
-    leads = rollout_lead(model, graphs, window_seconds, k)
+    metrics = head_metrics(model, graphs, threshold=threshold)
+    leads = rollout_lead(model, graphs, window_seconds, k, threshold=threshold)
     return {"checkpoint": checkpoint_rel, "rollout_k": k, "encoder": encoder,
             "val_windows": len(graphs), **metrics, "rollout_attacks": leads,
             "checkpoint_epoch": payload.get("epoch"),

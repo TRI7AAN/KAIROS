@@ -77,6 +77,34 @@ class TemporalDynamicsModel(nn.Module):
             self.transformer(encoded, mask=mask, is_causal=True)
         )
 
+    @torch.no_grad()
+    def attention_weights(self, states: torch.Tensor) -> torch.Tensor:
+        """Return causal self-attention as [layers, batch, heads, time, time]."""
+        if states.ndim != 3:
+            raise ValueError("states must have shape [batch, time, state_dim]")
+        if states.shape[1] < 1:
+            raise ValueError("at least one state is required")
+        encoded = self.position(states)
+        mask = nn.Transformer.generate_square_subsequent_mask(
+            states.shape[1], device=states.device
+        )
+        weights = []
+        for layer in self.transformer.layers:
+            attention_input = layer.norm1(encoded) if layer.norm_first else encoded
+            _, layer_weights = layer.self_attn(
+                attention_input,
+                attention_input,
+                attention_input,
+                attn_mask=mask,
+                need_weights=True,
+                average_attn_weights=False,
+                is_causal=True,
+            )
+            weights.append(layer_weights)
+            encoded = layer(encoded, src_mask=mask, is_causal=True)
+        return torch.stack(weights)
+
+
     def next_state_loss(self, states: torch.Tensor) -> torch.Tensor:
         """Teacher-forced one-step transition loss."""
         if states.shape[1] < 2:

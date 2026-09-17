@@ -2,23 +2,23 @@
   "split": {
     "method": "per_day_final_20pct_time_holdout",
     "description": "per-day first-80% train / last-20% val across day14/day15/day28/day0302; identical windows to the Phase 32 world-model in-distribution control",
-    "train_windows": 10560,
-    "test_windows": 2642,
+    "train_windows": 10589,
+    "test_windows": 2649,
     "per_day": [
       {
         "day": "day14.json",
-        "train": 2602,
-        "val": 651
+        "train": 2608,
+        "val": 652
       },
       {
         "day": "day15.json",
-        "train": 2730,
-        "val": 683
+        "train": 2743,
+        "val": 686
       },
       {
         "day": "day28.json",
-        "train": 2714,
-        "val": 679
+        "train": 2724,
+        "val": 682
       },
       {
         "day": "day0302.json",
@@ -28,26 +28,26 @@
     ]
   },
   "binary": {
-    "precision": 0.6214642262895175,
-    "recall": 0.7374136229022705,
-    "f1": 0.6744920993227991,
-    "false_positive_rate": 0.27931246163290363,
+    "precision": 0.6534653465346535,
+    "recall": 0.7764705882352941,
+    "f1": 0.7096774193548387,
+    "false_positive_rate": 0.2578268876611418,
     "confusion_matrix": [
       [
-        1174,
-        455
+        1209,
+        420
       ],
       [
-        266,
-        747
+        228,
+        792
       ]
     ],
     "early_warning_lead_time_seconds": null,
     "early_warning_note": "Not applicable to a non-temporal baseline.",
-    "training_seconds": 15.320320803999948,
+    "training_seconds": 12.257674822000126,
     "converged": true,
     "iterations": [
-      388
+      409
     ]
   },
   "stage": {
@@ -59,10 +59,10 @@
       "EXFILTRATION",
       "IMPACT"
     ],
-    "evaluated_malicious_windows": 1013,
-    "macro_precision": 0.47715672964932976,
-    "macro_recall": 0.49010673813890065,
-    "macro_f1": 0.48280901643785684,
+    "evaluated_malicious_windows": 1020,
+    "macro_precision": 0.4971264367816092,
+    "macro_recall": 0.4995231282784931,
+    "macro_f1": 0.4983119471782733,
     "confusion_matrix": [
       [
         0,
@@ -74,9 +74,9 @@
       ],
       [
         0,
-        681,
+        697,
         0,
-        14,
+        2,
         0,
         0
       ],
@@ -106,17 +106,17 @@
       ],
       [
         0,
-        5,
         0,
-        3,
         0,
-        196
+        0,
+        0,
+        207
       ]
     ],
-    "training_seconds": 2.4574057079998965,
+    "training_seconds": 0.7815620629999103,
     "converged": true,
     "iterations": [
-      70
+      46
     ]
   },
   "artifact": {

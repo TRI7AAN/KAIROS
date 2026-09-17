@@ -1,0 +1,12 @@
+{
+  "epochs": 5,
+  "chunk_length": 64,
+  "learning_rate": 0.001,
+  "gradient_clip_norm": 1.0,
+  "dynamics_weight": 0.25,
+  "infiltration_weight": 5.0,
+  "stage_weight": 5.0,
+  "infiltration_alpha": 0.9,
+  "focal_gamma": 2.0,
+  "random_seed": 42
+}

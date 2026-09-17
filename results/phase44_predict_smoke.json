@@ -1,0 +1,93 @@
+{
+  "cold_total_ms": 632.0312990001185,
+  "response": {
+    "probability": 0.42713236808776855,
+    "predicted_stage": "INITIAL_ACCESS",
+    "top_5_features": [
+      {
+        "feature": "forecast_context.position_fraction",
+        "value": 1.0,
+        "shap_value": -0.030149034292881544
+      },
+      {
+        "feature": "forecast_history.last_probability",
+        "value": 0.3858949840068817,
+        "shap_value": -0.014410562359249065
+      },
+      {
+        "feature": "forecast_history.max_probability",
+        "value": 0.3858949840068817,
+        "shap_value": 0.008484138482954534
+      },
+      {
+        "feature": "forecast_history.mean_probability",
+        "value": 0.10075311542355589,
+        "shap_value": -0.007127291612907585
+      },
+      {
+        "feature": "forecast_history.std_probability",
+        "value": 0.15617009181443892,
+        "shap_value": 0.0029749287347840543
+      }
+    ],
+    "attention_summary": {
+      "context_windows": 8,
+      "top_context_for_final_query": [
+        {
+          "context_index": 4,
+          "windows_before_forecast": 4,
+          "seconds_before_forecast": 40,
+          "attention_weight": 0.1380726546049118
+        },
+        {
+          "context_index": 3,
+          "windows_before_forecast": 5,
+          "seconds_before_forecast": 50,
+          "attention_weight": 0.13700705766677856
+        },
+        {
+          "context_index": 2,
+          "windows_before_forecast": 6,
+          "seconds_before_forecast": 60,
+          "attention_weight": 0.13564282655715942
+        },
+        {
+          "context_index": 1,
+          "windows_before_forecast": 7,
+          "seconds_before_forecast": 70,
+          "attention_weight": 0.12566331028938293
+        },
+        {
+          "context_index": 0,
+          "windows_before_forecast": 8,
+          "seconds_before_forecast": 80,
+          "attention_weight": 0.1256103515625
+        }
+      ],
+      "causal_future_attention_mass": 0.0
+    },
+    "artifact_version": "kairos.prediction.v1",
+    "forecast_horizon_windows": 1,
+    "window_seconds": 10.0,
+    "rollout": {
+      "steps": 3,
+      "probabilities": [
+        0.42713236808776855,
+        0.4330976605415344,
+        0.45672959089279175
+      ],
+      "predicted_stages": [
+        "INITIAL_ACCESS",
+        "INITIAL_ACCESS",
+        "IMPACT"
+      ],
+      "max_probability": 0.45672959089279175
+    },
+    "surrogate": {
+      "prediction": 0.39444654257853373,
+      "base_value": 0.44085998820595873
+    },
+    "model_artifact": "kairos.world-model.v1.phase38-stage",
+    "latency_ms": 325.4674720001276
+  }
+}

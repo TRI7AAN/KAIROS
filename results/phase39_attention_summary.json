@@ -1,0 +1,80 @@
+{
+  "artifact_version": "kairos.phase39.v1",
+  "shape_layers_batch_heads_query_key": [
+    2,
+    1,
+    4,
+    64,
+    64
+  ],
+  "context_windows": 64,
+  "window_seconds": 10,
+  "attack_start_validation_index": 1338,
+  "top_context_for_final_query": [
+    {
+      "context_index": 49,
+      "windows_before_attack": 15,
+      "seconds_before_attack": 150,
+      "attention_weight": 0.020393643528223038
+    },
+    {
+      "context_index": 56,
+      "windows_before_attack": 8,
+      "seconds_before_attack": 80,
+      "attention_weight": 0.020383095368742943
+    },
+    {
+      "context_index": 50,
+      "windows_before_attack": 14,
+      "seconds_before_attack": 140,
+      "attention_weight": 0.020143892616033554
+    },
+    {
+      "context_index": 57,
+      "windows_before_attack": 7,
+      "seconds_before_attack": 70,
+      "attention_weight": 0.019933518022298813
+    },
+    {
+      "context_index": 55,
+      "windows_before_attack": 9,
+      "seconds_before_attack": 90,
+      "attention_weight": 0.019629230722784996
+    },
+    {
+      "context_index": 37,
+      "windows_before_attack": 27,
+      "seconds_before_attack": 270,
+      "attention_weight": 0.0191865973174572
+    },
+    {
+      "context_index": 43,
+      "windows_before_attack": 21,
+      "seconds_before_attack": 210,
+      "attention_weight": 0.019151020795106888
+    },
+    {
+      "context_index": 48,
+      "windows_before_attack": 16,
+      "seconds_before_attack": 160,
+      "attention_weight": 0.01914186403155327
+    },
+    {
+      "context_index": 42,
+      "windows_before_attack": 22,
+      "seconds_before_attack": 220,
+      "attention_weight": 0.019081709906458855
+    },
+    {
+      "context_index": 54,
+      "windows_before_attack": 10,
+      "seconds_before_attack": 100,
+      "attention_weight": 0.0189191997051239
+    }
+  ],
+  "causal_future_attention_mass": 0.0,
+  "max_row_sum_error": 1.1920928955078125e-07,
+  "heatmap": "results/phase39_attention_heatmap.png",
+  "tensor": "results/phase39_attention_weights.pt",
+  "interpretation": "Weights explain which prior latent windows each Transformer query attended to. They are temporal attribution signals, not causal proof and not raw-feature SHAP values."
+}

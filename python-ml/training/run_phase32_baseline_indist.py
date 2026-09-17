@@ -22,6 +22,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT / "python-ml"))
 
 import numpy as np
+import joblib
 from sklearn.preprocessing import StandardScaler
 
 from baseline.logistic_regression import (
@@ -32,27 +33,29 @@ from baseline.logistic_regression import (
     TemporalSplit,
 )
 from pipeline.graph_builder import load_graph_sequences
+from phase32_common import resolve_contract_path
 
 DAY_NAMES = ["day14.json", "day15.json", "day28.json", "day0302.json"]
-DAY_COUNTS = [3253, 3413, 3393, 3143]
 TEST_FRACTION = 0.2
 
 
 def main() -> int:
-    contracts = [REPO_ROOT / "data" / "processed" / "graph_contracts" / n
-                 for n in DAY_NAMES]
+    contracts = [resolve_contract_path(name) for name in DAY_NAMES]
+    day_counts = []
+    for contract in contracts:
+        with contract.open("r", encoding="utf-8") as handle:
+            day_counts.append(len(json.load(handle)["windows"]))
     sequence = load_graph_sequences(contracts)
     dataset = flatten_graph_sequence(sequence)
-    assert dataset.features.shape[0] == sum(DAY_COUNTS) == 13202
+    assert dataset.features.shape[0] == sum(day_counts)
 
     bounds, start = [], 0
-    for count in DAY_COUNTS:
+    for count in day_counts:
         tail = math.ceil(count * TEST_FRACTION)
         bounds.append((start, start + count - tail, start + count))
         start += count
     train_idx = np.concatenate([np.arange(a, b) for a, b, _ in bounds])
     val_idx = np.concatenate([np.arange(b, c) for _, b, c in bounds])
-    assert len(train_idx) == 10560 and len(val_idx) == 2642
 
     scaler = StandardScaler()
     x_train = scaler.fit_transform(dataset.features[train_idx])
@@ -94,6 +97,11 @@ def main() -> int:
                  "remain in results/baseline_metrics.json."),
     }
     results_dir = REPO_ROOT / "results"
+    weights_dir = REPO_ROOT / "python-ml" / "weights"
+    joblib.dump(scaler, weights_dir / "baseline_scaler_indist.joblib")
+    joblib.dump(binary.model, weights_dir / "baseline_binary_lr_indist.joblib")
+    joblib.dump(stage.model, weights_dir / "baseline_stage_lr_indist.joblib")
+
     (results_dir / "baseline_metrics_indist.json").write_text(
         json.dumps(metrics, indent=2) + "\n", encoding="utf-8")
     np.savetxt(
@@ -114,8 +122,8 @@ def main() -> int:
     frozen = json.loads(frozen_path.read_text(encoding="utf-8"))
     frozen["comparison"] = {
         "in_distribution_validation_primary": {
-            "split": ("per-day final-20%-time holdout, 10,560 train / "
-                      "2,642 val; results/baseline_metrics_indist.json"),
+            "split": (f"per-day final-20%-time holdout, {len(train_idx):,} train / "
+                      f"{len(val_idx):,} val; results/baseline_metrics_indist.json"),
             "baseline_binary": {
                 "f1": metrics["binary"]["f1"],
                 "precision": metrics["binary"]["precision"],
@@ -124,7 +132,7 @@ def main() -> int:
                     metrics["binary"]["false_positive_rate"],
             },
             "baseline_stage_macro_f1": metrics["stage"]["macro_f1"],
-            "world_model_control_10s_K5_GNN": "see results/phase32_step0.json",
+            "world_model_winner_10s": "see results/phase32_completed.json",
         },
         "cross_day_generalization_stress_test_secondary": {
             "split": ("whole day0302 held out; world-model control in "

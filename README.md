@@ -505,4 +505,28 @@ a forward pass plus a full K=5 rollout with finite, correctly shaped output.
 Weights are committed directly (under ~100MB; see `python-ml/weights/README.md`
 for reproduction steps).
 Phase 31 complete — window size ablation finalized, winner: 10s. Stage macro-F1 diagnostic resolved: root cause is a coverage gap, not single-day data (training already spans all 4 selected days; validation stage C2 is disjoint from training stages IA/Impact, and Recon/Lateral/Exfil appear nowhere) — loss starvation ruled out (99.13% accuracy on seen IA windows). No expansion possible within current selection; deferred to Phase 34 with rationale in results/ablation_window_size.md. No checkpoint change (world_model_v1.pt stands; no singleday archive — current checkpoint IS the multi-day one). Next: Phase 32 (ablation: K and GNN-vs-flat).
-Phase 32 complete — split design fixed (in-distribution + cross-day generalization split now both tracked). Winning configuration: 10s window, K=5 (default retained; K=3/10 not run — stop gate tripped), encoder=GNN (default retained; flat encoder implemented, comparison deferred). In-distribution F1=0.0 (control, same hyperparameters; stop gate tripped — deeper modeling problem diagnosed: joint-loss dynamics-MSE dominance starves the infiltration head, grad-norm ratio ~25:1; loss-reweight pilots in /tmp reach F1 0.26-0.53), stage macro-F1=0.0138. Identical-split baseline head-to-head: F1=0.6745, stage macro-F1=0.4828 (results/baseline_metrics_indist.json). Cross-day generalization remains a known limitation, tracked separately. Next: Phase 33 (rollout proof-of-concept check using the finalized configuration).
+Phase 32 complete after seeded loss/alpha, encoder, and rollout-horizon ablations.
+The winner is the GNN with alpha 0.75 and loss weights 0.5/3/3, using K=3:
+in-distribution infiltration F1 0.3545, precision 0.5027, recall 0.2738, and
+FPR 0.1694. The flat encoder scored F1 0.0. Cross-day F1 is 0.1455, retained
+as an explicit generalization limitation. See `results/phase32_completed.json`.
+
+Phases 33-39 complete. K=3 produced 120-second early alerts for both eligible
+validation attacks, but the probability-rise criterion did not pass, so Phase 33
+is marked partial rather than overstated. The six-stage mapping was audited,
+the frozen stage head improved observed-class macro-F1 from 0.0667 to 0.3302,
+and causal Transformer attention extraction passes its mask and normalization
+checks. Reconnaissance, lateral movement, and exfiltration remain unsupported
+by the selected CIC training days.
+
+Phases 40-43 complete. The causal-history TreeSHAP surrogate reaches R2 0.9746
+and Pearson 0.9875 on its seeded teacher-output holdout; this is surrogate
+fidelity, not detector generalization. SHAP additivity error is below 3e-15 and
+explanation generation is below 170 ms in the recorded test.
+
+Phases 44-47 complete for the graph-contract backend path. Flask `POST /predict`
+runs graph loading, GNN/Transformer inference, K=3 rollout, attention, and SHAP.
+Java has a typed Python client and public `POST /forecast` endpoint, with a
+deterministic offline-local analyst narrative. File-upload orchestration,
+optional Gemini mode, React dashboard wiring, and full offline end-to-end
+verification remain Phase 48 onward.

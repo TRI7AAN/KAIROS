@@ -1,0 +1,72 @@
+{
+  "probability": 0.48704931139945984,
+  "predicted_stage": "IMPACT",
+  "top_5_features": [
+    {
+      "feature": "forecast_history.last_probability",
+      "value": 0.48358210921287537,
+      "shap_value": 0.02164532630877552
+    },
+    {
+      "feature": "forecast_history.mean_probability",
+      "value": 0.5942070484161377,
+      "shap_value": 0.02080996209327615
+    },
+    {
+      "feature": "forecast_history.std_probability",
+      "value": 0.04125352203845978,
+      "shap_value": 0.012658885199709534
+    },
+    {
+      "feature": "forecast_context.position_fraction",
+      "value": 0.5869565010070801,
+      "shap_value": -0.00688659090172283
+    },
+    {
+      "feature": "edge.fwd_pkts_s.sum.sum",
+      "value": 8591825.0,
+      "shap_value": -0.00032509819187968283
+    }
+  ],
+  "attention_summary": {
+    "context_windows": 64,
+    "top_context_for_final_query": [
+      {
+        "context_index": 49,
+        "windows_before_attack": 15,
+        "seconds_before_attack": 150,
+        "attention_weight": 0.020393643528223038
+      },
+      {
+        "context_index": 56,
+        "windows_before_attack": 8,
+        "seconds_before_attack": 80,
+        "attention_weight": 0.020383095368742943
+      },
+      {
+        "context_index": 50,
+        "windows_before_attack": 14,
+        "seconds_before_attack": 140,
+        "attention_weight": 0.020143892616033554
+      },
+      {
+        "context_index": 57,
+        "windows_before_attack": 7,
+        "seconds_before_attack": 70,
+        "attention_weight": 0.019933518022298813
+      },
+      {
+        "context_index": 55,
+        "windows_before_attack": 9,
+        "seconds_before_attack": 90,
+        "attention_weight": 0.019629230722784996
+      }
+    ],
+    "causal_future_attention_mass": 0.0
+  },
+  "surrogate": {
+    "prediction": 0.4893010189811903,
+    "base_value": 0.44085998820595873,
+    "fidelity_r2": 0.9745513883087267
+  }
+}

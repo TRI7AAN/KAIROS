@@ -1,0 +1,82 @@
+{
+  "artifact_version": "kairos.phase34.v1",
+  "manual_mapping_source": "java-engine/src/main/java/com/networkwm/ingestion/IngestionService.java:cicIds2018Timelines",
+  "manual_mapping": {
+    "FTP-BruteForce": "INITIAL_ACCESS",
+    "SSH-Bruteforce": "INITIAL_ACCESS",
+    "DoS attacks-GoldenEye": "IMPACT",
+    "DoS attacks-Slowloris": "IMPACT",
+    "Infiltration": "INITIAL_ACCESS",
+    "Bot": "COMMAND_AND_CONTROL"
+  },
+  "validation_split": {
+    "day14.json": {
+      "total": 3260,
+      "train": 2608,
+      "val": 652,
+      "train_stages": {
+        "-1": 2380,
+        "1": 228
+      },
+      "val_stages": {
+        "1": 347,
+        "-1": 305
+      }
+    },
+    "day15.json": {
+      "total": 3429,
+      "train": 2743,
+      "val": 686,
+      "train_stages": {
+        "-1": 2621,
+        "5": 122
+      },
+      "val_stages": {
+        "5": 207,
+        "-1": 479
+      }
+    },
+    "day28.json": {
+      "total": 3406,
+      "train": 2724,
+      "val": 682,
+      "train_stages": {
+        "-1": 2626,
+        "1": 98
+      },
+      "val_stages": {
+        "1": 352,
+        "-1": 330
+      }
+    },
+    "day0302.json": {
+      "total": 3143,
+      "train": 2514,
+      "val": 629,
+      "train_stages": {
+        "-1": 2143,
+        "3": 371
+      },
+      "val_stages": {
+        "3": 114,
+        "-1": 515
+      }
+    }
+  },
+  "malicious_windows_evaluated": 1016,
+  "stage_accuracy": 0.11122047244094488,
+  "observed_class_macro_f1": 0.06672571597283732,
+  "all_six_class_macro_f1": 0.03336285798641866,
+  "observed_classes": [
+    "INITIAL_ACCESS",
+    "COMMAND_AND_CONTROL",
+    "IMPACT"
+  ],
+  "unobserved_classes": [
+    "RECONNAISSANCE",
+    "LATERAL_MOVEMENT",
+    "EXFILTRATION"
+  ],
+  "result": "weak_agreement",
+  "limitation": "Only INITIAL_ACCESS, COMMAND_AND_CONTROL, and IMPACT occur in the selected CIC-IDS2018 contracts; the other three ATT&CK stages cannot be validated from this dataset."
+}

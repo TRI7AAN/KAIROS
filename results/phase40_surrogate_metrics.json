@@ -1,0 +1,31 @@
+{
+  "artifact_version": "kairos.phase40.v1",
+  "model": "ExtraTreesRegressor",
+  "configuration": {
+    "n_estimators": 100,
+    "max_depth": 18,
+    "min_samples_leaf": 2,
+    "max_features": 0.25,
+    "random_seed": 42
+  },
+  "validation_scope": "Seeded 20% holdout over teacher outputs from all in-distribution CIC days. This measures surrogate-to-teacher fidelity only; it is not an attack-detection or future-generalization metric.",
+  "training_rows": 10584,
+  "validation_rows": 2646,
+  "feature_count": 1289,
+  "training_seconds": 8.124896032999914,
+  "fidelity": {
+    "r2": 0.9745513883087267,
+    "mae": 0.009093389538555161,
+    "rmse": 0.014709590809253591,
+    "pearson_correlation": 0.9875493422490202,
+    "world_probability_min_max": [
+      0.003170566400513053,
+      0.6524907946586609
+    ],
+    "surrogate_probability_min_max": [
+      0.3001933806037192,
+      0.6363786156562825
+    ]
+  },
+  "artifact": "python-ml/weights/shap_surrogate_v1.joblib"
+}

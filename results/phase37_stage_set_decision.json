@@ -1,0 +1,16 @@
+{
+  "artifact_version": "kairos.phase37.v1",
+  "decision": "retain_six_class_external_schema_no_merge",
+  "active_training_classes": [
+    "INITIAL_ACCESS",
+    "COMMAND_AND_CONTROL",
+    "IMPACT"
+  ],
+  "unsupported_in_selected_data": [
+    "RECONNAISSANCE",
+    "LATERAL_MOVEMENT",
+    "EXFILTRATION"
+  ],
+  "rationale": "The three weak classes have zero examples, not evidence of semantic overlap. Merging them would invent supervision and break the stable Java/Python six-class contract. Fine-tuning therefore uses class balancing over the three observed classes while retaining all six output positions for later data expansion.",
+  "demo_policy": "Do not claim validated performance for unsupported stages; expose the full schema but identify the coverage limitation."
+}

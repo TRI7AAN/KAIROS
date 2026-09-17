@@ -23,6 +23,7 @@ class WorldModelTrainingConfig:
     dynamics_weight: float = 1.0
     infiltration_weight: float = 1.0
     stage_weight: float = 1.0
+    infiltration_alpha: float = 0.25
     focal_gamma: float = 2.0
     random_seed: int = 42
 
@@ -168,5 +169,6 @@ def _chunk_loss(
         infiltration_weight=config.infiltration_weight,
         stage_weight=config.stage_weight,
         focal_gamma=config.focal_gamma,
+        binary_focal_alpha=config.infiltration_alpha,
     )
     return losses.total

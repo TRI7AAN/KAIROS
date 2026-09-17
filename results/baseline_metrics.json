@@ -1398,15 +1398,15 @@
   },
   "comparison": {
     "in_distribution_validation_primary": {
-      "split": "per-day final-20%-time holdout, 10,560 train / 2,642 val; results/baseline_metrics_indist.json",
+      "split": "per-day final-20%-time holdout, 10,589 train / 2,649 val; results/baseline_metrics_indist.json",
       "baseline_binary": {
-        "f1": 0.6744920993227991,
-        "precision": 0.6214642262895175,
-        "recall": 0.7374136229022705,
-        "false_positive_rate": 0.27931246163290363
+        "f1": 0.7096774193548387,
+        "precision": 0.6534653465346535,
+        "recall": 0.7764705882352941,
+        "false_positive_rate": 0.2578268876611418
       },
-      "baseline_stage_macro_f1": 0.48280901643785684,
-      "world_model_control_10s_K5_GNN": "see results/phase32_step0.json"
+      "baseline_stage_macro_f1": 0.4983119471782733,
+      "world_model_winner_10s": "see results/phase32_completed.json"
     },
     "cross_day_generalization_stress_test_secondary": {
       "split": "whole day0302 held out; world-model control in results/phase32_step0.json; frozen baseline numbers above use a joined final-20% holdout inside day0302",

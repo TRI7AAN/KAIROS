@@ -39,6 +39,12 @@ class WorldModelTest(unittest.TestCase):
         rollout = model.rollout(states[:, :3], steps=5)
         self.assertEqual(tuple(rollout.shape), (2, 5, 8))
         self.assertTrue(torch.isfinite(rollout).all())
+        attention = model.attention_weights(states)
+        self.assertEqual(tuple(attention.shape), (2, 2, 4, 6, 6))
+        self.assertTrue(torch.isfinite(attention).all())
+        self.assertTrue(torch.all(attention[..., 0, 1:] == 0))
+        torch.testing.assert_close(attention.sum(dim=-1), torch.ones(2, 2, 4, 6))
+
 
     def test_day_split_and_training_checkpoint_reduce_validation_loss(self) -> None:
         timestamps = torch.tensor([

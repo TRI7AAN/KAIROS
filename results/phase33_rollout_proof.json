@@ -1,0 +1,181 @@
+{
+  "artifact_version": "kairos.phase33.v1",
+  "winning_configuration": {
+    "window_seconds": 10,
+    "rollout_k": 3,
+    "encoder": "gnn",
+    "loss": "alpha075_050_3_3",
+    "threshold": 0.5
+  },
+  "eligible_attacks": 2,
+  "attacks_with_world_model_early_warning": 2,
+  "attacks_with_material_probability_rise": 0,
+  "proof_status": "partial",
+  "interpretation": "The winner crosses the alert threshold before attack onset, but the sampled probabilities do not show a material near-onset rise. This demonstrates early alerting, not a calibrated rising-risk trajectory. The logistic baseline is non-temporal and has no rollout lead-time claim.",
+  "baseline_metrics_same_split": {
+    "precision": 0.6534653465346535,
+    "recall": 0.7764705882352941,
+    "f1": 0.7096774193548387,
+    "false_positive_rate": 0.2578268876611418,
+    "confusion_matrix": [
+      [
+        1209,
+        420
+      ],
+      [
+        228,
+        792
+      ]
+    ],
+    "early_warning_lead_time_seconds": null,
+    "early_warning_note": "Not applicable to a non-temporal baseline.",
+    "training_seconds": 12.257674822000126,
+    "converged": true,
+    "iterations": [
+      409
+    ]
+  },
+  "attacks": [
+    {
+      "attack_number": 1,
+      "attack_start_window": 1338,
+      "world_model_early_warning_seconds": 120,
+      "baseline_pre_attack_detection_seconds": null,
+      "near_minus_far_probability": -0.0017285346984863281,
+      "material_rise_confirmed": false,
+      "curve": [
+        {
+          "seconds_before_attack": 120,
+          "world_rollout_probability": 0.5359479784965515,
+          "baseline_contemporaneous_probability": 0.004690674485205343
+        },
+        {
+          "seconds_before_attack": 110,
+          "world_rollout_probability": 0.5356371998786926,
+          "baseline_contemporaneous_probability": 0.004691061738105873
+        },
+        {
+          "seconds_before_attack": 100,
+          "world_rollout_probability": 0.5355149507522583,
+          "baseline_contemporaneous_probability": 0.012608039640465293
+        },
+        {
+          "seconds_before_attack": 90,
+          "world_rollout_probability": 0.5337023138999939,
+          "baseline_contemporaneous_probability": 0.038477200713674366
+        },
+        {
+          "seconds_before_attack": 80,
+          "world_rollout_probability": 0.5338216423988342,
+          "baseline_contemporaneous_probability": 0.1170855245963697
+        },
+        {
+          "seconds_before_attack": 70,
+          "world_rollout_probability": 0.5365046858787537,
+          "baseline_contemporaneous_probability": 0.00042479445216519915
+        },
+        {
+          "seconds_before_attack": 60,
+          "world_rollout_probability": 0.5357599854469299,
+          "baseline_contemporaneous_probability": 0.0022602720009774224
+        },
+        {
+          "seconds_before_attack": 50,
+          "world_rollout_probability": 0.5334442257881165,
+          "baseline_contemporaneous_probability": 0.009150339787085729
+        },
+        {
+          "seconds_before_attack": 40,
+          "world_rollout_probability": 0.5342287421226501,
+          "baseline_contemporaneous_probability": 0.012562744346928008
+        },
+        {
+          "seconds_before_attack": 30,
+          "world_rollout_probability": 0.5366533398628235,
+          "baseline_contemporaneous_probability": 0.05171868733828432
+        },
+        {
+          "seconds_before_attack": 20,
+          "world_rollout_probability": 0.5342056155204773,
+          "baseline_contemporaneous_probability": 0.08582909435825349
+        },
+        {
+          "seconds_before_attack": 10,
+          "world_rollout_probability": 0.5342194437980652,
+          "baseline_contemporaneous_probability": 0.03026384356748286
+        }
+      ]
+    },
+    {
+      "attack_number": 2,
+      "attack_start_window": 652,
+      "world_model_early_warning_seconds": 120,
+      "baseline_pre_attack_detection_seconds": null,
+      "near_minus_far_probability": -0.000865936279296875,
+      "material_rise_confirmed": false,
+      "curve": [
+        {
+          "seconds_before_attack": 120,
+          "world_rollout_probability": 0.5318037867546082,
+          "baseline_contemporaneous_probability": 0.005106243746507332
+        },
+        {
+          "seconds_before_attack": 110,
+          "world_rollout_probability": 0.5308095216751099,
+          "baseline_contemporaneous_probability": 0.06937382537565912
+        },
+        {
+          "seconds_before_attack": 100,
+          "world_rollout_probability": 0.5309529304504395,
+          "baseline_contemporaneous_probability": 0.12765147819171171
+        },
+        {
+          "seconds_before_attack": 90,
+          "world_rollout_probability": 0.5310524702072144,
+          "baseline_contemporaneous_probability": 0.0031888463665127515
+        },
+        {
+          "seconds_before_attack": 80,
+          "world_rollout_probability": 0.5311067700386047,
+          "baseline_contemporaneous_probability": 0.005146847702800289
+        },
+        {
+          "seconds_before_attack": 70,
+          "world_rollout_probability": 0.5319303870201111,
+          "baseline_contemporaneous_probability": 0.026191068350817852
+        },
+        {
+          "seconds_before_attack": 60,
+          "world_rollout_probability": 0.5336049795150757,
+          "baseline_contemporaneous_probability": 0.015397818982315311
+        },
+        {
+          "seconds_before_attack": 50,
+          "world_rollout_probability": 0.5354928374290466,
+          "baseline_contemporaneous_probability": 0.010445968272529124
+        },
+        {
+          "seconds_before_attack": 40,
+          "world_rollout_probability": 0.5350656509399414,
+          "baseline_contemporaneous_probability": 0.002843556159794598
+        },
+        {
+          "seconds_before_attack": 30,
+          "world_rollout_probability": 0.5332545638084412,
+          "baseline_contemporaneous_probability": 0.0031436682444202914
+        },
+        {
+          "seconds_before_attack": 20,
+          "world_rollout_probability": 0.5317366719245911,
+          "baseline_contemporaneous_probability": 0.0074445731414290875
+        },
+        {
+          "seconds_before_attack": 10,
+          "world_rollout_probability": 0.5309378504753113,
+          "baseline_contemporaneous_probability": 0.05543040320011712
+        }
+      ]
+    }
+  ],
+  "plot": "results/phase33_rollout_vs_baseline.png"
+}

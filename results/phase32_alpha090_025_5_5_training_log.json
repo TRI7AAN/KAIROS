@@ -1,0 +1,34 @@
+{
+  "tag": "alpha090_025_5_5",
+  "encoder": "gnn",
+  "train_windows": 10589,
+  "validation_windows": 2649,
+  "epochs": 5,
+  "chunk_length": 64,
+  "learning_rate": 0.001,
+  "random_seed": 42,
+  "loss_weights": {
+    "dynamics": 0.25,
+    "infiltration": 5.0,
+    "stage": 5.0,
+    "infiltration_alpha": 0.9
+  },
+  "training_loss": [
+    0.8684245944844887,
+    0.6999774429344517,
+    0.6923146684051437,
+    5.678982298782862,
+    0.5639118556316722
+  ],
+  "validation_loss": [
+    8.947861421246861,
+    9.810230883748032,
+    7.053936149145281,
+    17.76747665294381,
+    10.875118630570034
+  ],
+  "best_epoch": 2,
+  "best_validation_loss": 7.053936149145281,
+  "checkpoint": "python-ml/weights/phase32_alpha090_025_5_5_gnn.pt",
+  "elapsed_seconds": 13.449987411499023
+}

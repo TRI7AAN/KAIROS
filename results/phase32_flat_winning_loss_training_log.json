@@ -1,0 +1,34 @@
+{
+  "tag": "flat_winning_loss",
+  "encoder": "flat",
+  "train_windows": 10589,
+  "validation_windows": 2649,
+  "epochs": 5,
+  "chunk_length": 64,
+  "learning_rate": 0.001,
+  "random_seed": 42,
+  "loss_weights": {
+    "dynamics": 0.5,
+    "infiltration": 3.0,
+    "stage": 3.0,
+    "infiltration_alpha": 0.75
+  },
+  "training_loss": [
+    0.7753493487396661,
+    0.6569200563080171,
+    0.6094887966618818,
+    0.5802780462100225,
+    0.5451887805453118
+  ],
+  "validation_loss": [
+    2.7169748627862265,
+    2.1437013942834944,
+    1.6745111902439318,
+    1.7605087774437527,
+    1.7639589929996535
+  ],
+  "best_epoch": 2,
+  "best_validation_loss": 1.6745111902439318,
+  "checkpoint": "python-ml/weights/phase32_flat_winning_loss.pt",
+  "elapsed_seconds": 43.58690285682678
+}
