@@ -1,40 +1,70 @@
-# Network Attack World Model — AI-Based Network Attack Forecasting
+# KAIROS — Network Attack World Model
 
-## Problem Statement
+KAIROS learns network-traffic state-transition dynamics — P(S_t+1 | S_t), the
+probability distribution over future network states given the current state —
+and forecasts attacker progression before compromise using K-step
+autoregressive rollout of the learned dynamics, instead of classifying the
+present. The static offline pipeline (file upload → windowing → graph build →
+world-model inference → explanation → analyst narrative → dashboard) is
+complete and verified end-to-end (Phases 0–63), runs fully offline by default,
+and currently trails a non-temporal logistic-regression baseline on raw
+in-distribution F1 while offering rollout-based early warning, MITRE-stage
+mapping, and SHAP/attention explainability the baseline cannot provide. A
+live-capture and authorized active-probe extension (Phases 66–78) is planned
+as a separate, higher-risk tier and has not started.
 
-Traditional machine-learning classifiers for network intrusion detection treat each network flow in isolation: a flow comes in, a label comes out, and the temporal and causal structure of the infiltration is discarded. But real attacks unfold as ordered processes — a port-probing sequence precedes exploitation, a SYN-before-ACK-flood pattern precedes denial of service, and slow reconnaissance packet inter-arrival timing precedes lateral movement. A per-flow classifier sees none of this; it cannot model how one network state leads to the next, and it cannot warn anyone until the malicious flow has already crossed the wire.
+## Table of Contents
 
-The goal of this project is a World Model — an AI architecture that learns P(S_t+1 | S_t), the probability distribution over future network states given the current state. Instead of classifying the present, the model learns transition dynamics: how traffic behavior evolves from one time window to the next. By running K-step autoregressive rollout — forward simulation of the learned dynamics — the system can detect whether a traffic trajectory is converging toward an infiltration state before the attacker completes the kill chain, producing an early warning with a measurable lead time ahead of the true compromise timestamp.
+- [Safety and Legal Notice](#safety-and-legal-notice)
+- [Architecture Overview](#architecture-overview)
+- [Quick Start (Offline Demo)](#quick-start-offline-demo)
+- [Datasets](#datasets)
+- [Model Architecture and Training](#model-architecture-and-training)
+- [Benchmark Results](#benchmark-results)
+- [Explainability](#explainability)
+- [MITRE ATT\&CK Stage Mapping](#mitre-attck-stage-mapping)
+- [Offline Mode and Gemini Narrative Mode](#offline-mode-and-gemini-narrative-mode)
+- [Known Limitations](#known-limitations)
+- [Roadmap — Live-Capture and Active-Probe Extension (Phases 66–78)](#roadmap--live-capture-and-active-probe-extension-phases-66-78)
+- [Reproducibility](#reproducibility)
+- [Contribution / License / Acknowledgments](#contribution--license--acknowledgments)
+
+## Safety and Legal Notice
+
+This project is a research/hackathon prototype. The verified static pipeline
+analyzes files you provide (PCAP/CSV upload) only — it performs no network
+capture and no active probing. Any future live-capture or active-probe
+capability (Phases 66–78, not started) must only be used on networks and
+hosts you own or are explicitly authorized to test. Active probing in
+particular carries legal responsibility resting entirely with the operator.
+The project maintainers are not responsible for misuse.
 
 ## Architecture Overview
 
-The system is a four-layer stack, one language per layer, chosen to match the performance and ecosystem demands of each responsibility.
+Four-layer stack, one language per layer, plus an optional narrative layer:
 
-- **C++ (cpp-engine): high-throughput packet-level feature extraction.** Per-packet loops over PCAPs — computing TTL variance, TCP window size, fragmentation flags, retransmission counts, and port-scan signature detection — benefit from native speed and direct memory access to raw packet buffers. This layer runs closest to the wire and emits structured feature records for the orchestration engine.
-
-- **Java (java-engine): base orchestration engine.** Ingestion service, windowing, graph construction, and the REST API server live here. Java bridges to the C++ engine (JNI/JNA) and to the Python ML service (REST client), and hosts the Gemini narrative service via the Google Gen AI Java SDK. It is the single control plane that orders data through the other layers.
-
-- **Python (python-ml): GNN/Transformer world model service.** A GraphSAGE/GAT encoder compresses each per-window host-flow graph into a fixed-size embedding; a Temporal Transformer (with LSTM fallback) learns P(S_t+1 | S_t); K-step autoregressive rollout feeds predicted states forward; sigmoid infiltration-probability and softmax MITRE-stage forecast heads sit on top; SHAP explainability is computed via a distilled tabular surrogate model. Exposed as a lightweight Flask REST service the Java engine calls.
-
-- **Gemini API (via Java SDK, OPTIONAL): natural-language narrative.** Converts the structured technical output (probability score, predicted MITRE stage, top SHAP features) into a SOC analyst briefing. This is a human-facing layer on top of, never a replacement for, the mandatory SHAP/attention explainability. **Offline-compliance note:** because the problem statement requires the demo to run fully offline with no cloud dependencies, Gemini is built as an optional toggle with a **local rule-based fallback narrative generator**. The core submission must pass fully offline; Gemini is a "bonus mode" for live demos with internet available. See Phase 47 (local fallback), Phase 48 (Gemini service), and Phase 49 (toggle wiring).
-
-- **React (react-ui): dashboard consuming the Java engine's REST API.** Probability timeline, flagged flows table, stage annotations, and the Gemini-generated narrative panel.
-
-## Research Summary
-
-Static classification fails for attack forecasting for three connected reasons. First, it performs no temporal or causal modeling: features are extracted from a single flow record and the order in which flows, probes, and bursts occurred is thrown away, so a sequential port scan and a burst of unrelated benign connections can look identical. Second, it supports no forward simulation: a classifier maps a fixed input to a fixed output and has no notion of where the current trajectory is heading, which means it can only react to attacks already in progress rather than forecast states that have not happened yet. Third, it treats each flow independently, ignoring the host-level and session-level structure that distinguishes a coordinated infiltration from background noise.
-
-A World Model changes the learning target from a fixed input-output mapping to transition dynamics. Rather than memorizing what an attack flow looks like, the model learns how network states evolve: given the current state of traffic, what does the next state look like, and the one after that. Because predictions are generated by autoregressive rollout, the model can simulate entire future trajectories and score whether they converge toward compromise. This process-level modeling is what allows generalization beyond memorized attack signatures: even an unseen attack variant still has to move through the same causal stages, and a model of the process recognizes the trajectory even when individual packets look novel.
-
-Both flow-level and packet-level features are required because they observe fundamentally different aspects of attacker behavior. Flow-level features in the NetFlow/IPFIX tradition (IPs/ports, TCP flag bitmask, protocol, bytes and packets per flow, duration, IAT statistics, bidirectional ratios) capture aggregate behavior and are the right lens for volumetric phenomena such as SYN floods. Packet-level features (TTL values and variance, TCP window sizes, IP fragment flags, payload-size distribution, sequential versus randomized port-scan signatures, retransmission counts) expose fine-grained timing and sequencing patterns such as the low-and-slow reconnaissance scans deliberately shaped to stay under flow-based thresholds. Either view alone leaves a blind spot.
-
-The dataset strategy pairs a rich primary training set with a strict zero-shot generalization holdout. CSE-CIC-IDS2018 is the primary training data: more than eighty CICFlowMeter-derived flow features across ten days of labeled traffic covering brute-force, DoS/DDoS, web attacks, botnet, and infiltration scenarios, with published per-day attack timelines that allow ground-truth state-transition labels to be derived from the schedule of events. CTU-13 serves as the zero-shot generalization holdout: thirteen real botnet-capture scenarios (Neris, Rbot, Virut families) that are never touched during training, so strong performance on CTU-13 proves the model learned transferable transition dynamics rather than memorizing signatures.
-
-A MITRE ATT&CK stage mapping heuristic is used both to derive stage labels from published timelines and to sanity-check the model's stage predictions: Reconnaissance (port-scan signatures, sequential/randomized port access, low-and-slow SYN probes), Initial Access (brute-force auth bursts, exploit-shaped payload sizes), Lateral Movement (internal-to-internal flow spikes, sudden fan-out from one host), Command & Control (periodic low-volume beaconing, low-variance inter-arrival time), Exfiltration (sustained high outbound bytes, asymmetric bidirectional ratio).
-
-The baseline methodology is designed so any claimed advantage is honest. Logistic regression is trained on the identical feature set in non-temporal flattened form, using the same time-based train/test split (never randomly shuffled across windows), benchmarked on F1, precision, recall, FPR, and an early-warning lead-time metric (how many time windows before the true compromise timestamp the model first crosses its alert threshold).
-
-## Architecture Diagram
+- **C++ (cpp-engine): packet-level feature extraction.** Parses PCAP/PCAPNG,
+  aggregates flows, reconstructs logical payload lengths from retained
+  headers, and runs a per-window port-scan signature detector (sequential vs.
+  randomized). Exposed to Java via JNI (`libkairos_native.so`).
+- **Java (java-engine): orchestration engine and REST API.** CSV ingestion,
+  10-second windowing, host-flow graph construction, the versioned
+  `kairos.sequence.v1` contract, the typed `PythonMlClient` REST client,
+  narrative services, and the public `POST /forecast` and
+  `POST /forecast/upload` endpoints (Spring Boot).
+- **Python (python-ml): world-model inference service (Flask).** GraphSAGE
+  encoder → causal Transformer dynamics → K-step rollout → infiltration and
+  stage forecast heads → SHAP/attention explanation. Internal
+  `POST /predict` endpoint (never called by the browser).
+- **React (react-ui): dashboard.** Upload form, probability timeline, flagged
+  flows table, stage annotations, narrative panel with mode badge, and a
+  sample-attack quick-load button. Calls Java at `POST /forecast/upload`.
+- **Narrative layer (Java, optional Gemini):** the **default is the
+  offline-local rule-based generator** — deterministic templating, no network
+  call. Gemini enhancement requires **both** `ONLINE_MODE=true` **and** a
+  `GEMINI_API_KEY` (with `GOOGLE_API_KEY` accepted as a legacy fallback);
+  any Gemini failure falls back to a local narrative. Gemini supplements and
+  never replaces SHAP/attention output.
 
 ```
 Raw PCAP / CSV
@@ -47,11 +77,10 @@ Raw PCAP / CSV
       v
 [Java Ingestion Service]  -- java-engine
       |                        read PCAP/CSV, stream into time windows
-      |                        (10s default; 5s/30s configs on standby)
+      |                        (10s windows)
       v
 [Java Windowing + Graph Builder]  -- java-engine
       |                              per-window host-flow graph snapshots
-      |                              (hosts=nodes, flows=edges with features)
       |                              ordered graph sequences + next-state labels
       v
 [REST: POST /predict]  -- java-engine -> python-ml  (feature tensor JSON)
@@ -59,9 +88,9 @@ Raw PCAP / CSV
       v
 [python-ml World Model Service]  (Flask)
       |
-      +-- [GNN Encoder: GraphSAGE/GAT]  -> per-window graph embedding
+      +-- [GNN Encoder: GraphSAGE]  -> per-window graph embedding
       |
-      +-- [Temporal Dynamics: Transformer / LSTM]  learns P(S_t+1 | S_t)
+      +-- [Temporal Dynamics: Transformer]  learns P(S_t+1 | S_t)
       |
       +-- [K-Step Autoregressive Rollout]  t+1 .. t+K predicted states
       |
@@ -87,463 +116,296 @@ Raw PCAP / CSV
       +-- Narrative Panel        (local or Gemini briefing, mode-indicated)
 ```
 
-## Inter-Service Communication
+Inter-service calls: Java→C++ via JNI (`CppBridge`); Java→Python via
+`PythonMlClient` (OkHttp) to the private `POST /predict`; browser→Java at
+`POST /forecast` / `POST /forecast/upload`. The Python endpoint is internal
+and is never called by the browser.
 
-- **Java <-> C++ (cpp-engine):** the Java engine calls the C++ packet feature extractor via JNI or JNA, loading the native shared library and delegating `open(pcap)` and `extract_next_batch()`. For the prototype, a subprocess invocation of a C++ CLI wrapper is an acceptable fallback.
+## Quick Start (Offline Demo)
 
-- **Java <-> Python (python-ml):** the Java engine's `PythonMlClient` POSTs the per-window feature tensor to the python-ml service's `/predict` endpoint and deserializes the JSON response containing infiltration probability, predicted MITRE stage, and SHAP feature attributions.
+This is the exact command sequence verified live (full stack, network
+disabled, real CSV upload → narrative → JSON response, zero errors, zero
+external calls; sample upload answered in 0.28–0.43s; cold start ≈ Java
+boot ~1.4s + first inference ~0.3s, well under 30s).
 
-- **Java <-> Gemini API:** the Java engine calls Gemini via the Google Gen AI Java SDK, building structured prompts from the python-ml service's response (probability, stage, top SHAP features) and returning a natural-language narrative.
+Prerequisites per layer (all verified):
+
+- **C++:** C++17 compiler + CMake. Build the native library:
+  `cmake -S cpp-engine -B cpp-engine/cmake-build-local && cmake --build cpp-engine/cmake-build-local`
+  (the JNI round-trip test passes against the built `libkairos_native.so`).
+- **Java:** JDK 17 or newer — tested with JDK 21
+  (`export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64`). Maven is
+  supplied by the checked-in wrapper (`./mvnw`); the full suite passes
+  offline (`./mvnw -o test`: 20 tests, 0 failures).
+- **Python:** `python3 -m venv python-ml/venv &&
+  python-ml/venv/bin/pip install -r python-ml/requirements.txt` (pinned,
+  CPU-only: `torch==2.14.0+cpu`, `torch-geometric==2.8.0.post1`,
+  `Flask==3.1.3`, `shap==0.52.0`, `scikit-learn==1.9.1`). Tested with
+  Python 3.13.
+- **React:** Node (`.node-version` pins 24.21.0), React 18
+  (`react-scripts ^5.0.1`): `cd react-ui && npm ci && npm run build`
+  (verified: compiles successfully).
+- **Offline env:** `cp .env.example .env` (ships `ONLINE_MODE=false` with
+  an empty key). Ensure neither `GEMINI_API_KEY` nor `GOOGLE_API_KEY` is
+  set in the environment.
+
+Run the offline demo (three terminals, repo root):
+
+```bash
+# Terminal 1 — Python ML service (default port 5000)
+ONLINE_MODE=false python-ml/venv/bin/python python-ml/app.py
+
+# Terminal 2 — Java engine (default port 8080; JDK 21)
+export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
+cd java-engine && ONLINE_MODE=false ./mvnw spring-boot:run
+
+# Terminal 3 — upload the bundled sample through the full chain
+curl -X POST http://127.0.0.1:8080/forecast/upload \
+  -F "file=@react-ui/public/sample-attack.csv;type=text/csv" \
+  -F "rolloutSteps=3"
+```
+
+Expected: HTTP 200 with `{artifactVersion, prediction, narrative}`, where
+`prediction.probability` ≈ 0.59, `predicted_stage` is a MITRE stage, and
+`narrative.mode` is `offline-local`. (Verified live: probability 0.5901,
+stage `COMMAND_AND_CONTROL`, mode `offline-local`.) The React dashboard
+(`react-ui`, served from `npm run build` output) posts to the same
+`/forecast/upload` endpoint via its "Load sample attack" button.
 
 ## Datasets
 
-**CSE-CIC-IDS2018 (primary training data)** — registry.opendata.aws/cse-cic-ids2018. Ten days of labeled enterprise-network traffic (brute-force, DoS/DDoS, web attacks, botnet, infiltration) with 80+ CICFlowMeter flow features per record and published per-day attack timelines. Download and verify the selected four-day slice with:
+**CSE-CIC-IDS2018 (primary training data)** — exactly four days are used:
+2018-02-14, 2018-02-15, 2018-02-28, and 2018-03-02. Each day is capped to
+200,000 flows with seed 42 via `python-ml/pipeline/downsample_flows.py`
+(stratified, class-ratio-preserving; see `data/cic_ids_2018_manifest.yaml`),
+then exported to 10-second graph contracts
+(`data/processed/graph_contracts/day14/day15/day28/day0302.json`): 3,253 +
+3,413 + 3,393 + 3,143 = 13,202 ordered windows. Raw and processed data
+directories are gitignored (local `data/` ≈ 4.7G); manifests are tracked.
+
+**CTU-13 Scenario 6 / DonBot (capture 47)** — reserved for packet-level
+feature development ONLY: the official privacy-preserving truncated
+complete-traffic capture (602,748,112-byte `.bz2`, SHA-256-verified;
+38,705,338 packets, 7749.87s / 02:09:10, headers retained, payload
+removed) at `data/raw/ctu13_pcap/scenario06_donbot/`, documented in
+`data/ctu13_scenario6_manifest.yaml`. It is **explicitly excluded from any
+zero-shot generalization test** — the Phases 58–60 test must use a
+different CTU-13 scenario to preserve the leakage-free claim.
+
+## Model Architecture and Training
+
+- **GNN encoder:** edge-aware GraphSAGE, 2 layers, hidden dim 64, state dim
+  64, attention pooling, dropout 0.1 (`python-ml/model/encoder_gnn.py`).
+- **Temporal dynamics:** causal Transformer, 2 layers, 4 heads, sinusoidal
+  positional encoding, dropout 0.1 (`python-ml/model/dynamics_transformer.py`).
+- **Rollout:** K-step autoregressive feeding of predicted states; K=3 is the
+  selected horizon (ablated K=3/5/10). Services accept rollout steps 1–10.
+- **Forecast heads:** sigmoid infiltration-probability head and 6-class
+  softmax MITRE-stage head sharing the rolled-forward latents; focal
+  classification losses plus dynamics MSE, gradient clipping
+  (`python-ml/model/forecast_heads.py`).
+- **Current canonical checkpoint** (`python-ml/weights/world_model_v1.pt`,
+  603KB, `artifact_version kairos.world-model.v1.phase38-stage`): trained on
+  the PRIMARY in-distribution split (per-day first-80% train / last-20% val,
+  joined ≈10,589 train / 2,649 val windows), 5 epochs, chunk length 64,
+  AdamW lr 1e-3 with **no weight decay and no LR schedule**, loss weights
+  dynamics 0.5 / infiltration 3.0 / stage 3.0 with focal alpha 0.75, seed
+  42, **checkpoint selected by validation loss** (best epoch 1,
+  val_loss 3.915), followed by the frozen-backbone Phase 38 stage-head
+  fine-tune (stage observed-macro 0.0667 → 0.3302 as recorded; infiltration
+  probabilities provably unchanged, max delta 0.0). The losing Phase 32
+  encoder (flat, F1 0.0) and loss-grid variants are reproducible via
+  `python-ml/training/run_phase32_complete.py`; the pre-Phase-63 archive is
+  kept at `python-ml/weights/world_model_v1_pretune_baseline_loss.pt`.
+- **Phase 63 retraining attempt (NOT promoted):** same proven recipe, 6
+  epochs, checkpoint selected by validation F1 instead of loss
+  (`python-ml/training/run_phase63_retrain.py`, full trajectory in
+  `results/phase63_retrain.json`). Added dropout/weight-decay/cosine
+  schedules and aggressive loss rebalancing were all trialed first and
+  rejected by evidence (each accelerated infiltration-head collapse).
+
+## Benchmark Results
+
+Source: `results/benchmark_table.csv` (threshold 0.5 throughout).
+
+| Model | Split | F1 | Precision | Recall | FPR | AUC-ROC | Stage macro-F1 | Early-warning lead time |
+|---|---|---|---|---|---|---|---|---|
+| Logistic Regression (frozen `baseline-v1`) | In-distribution (identical 10,589/2,649 windows) | 0.7097 | 0.6535 | 0.7765 | 0.2578 | — | 0.4983 | N/A (non-temporal) |
+| World Model (canonical checkpoint) | In-distribution (same windows) | 0.3454 | 0.5027 | 0.2738 | 0.1694 | 0.5813 | 0.0335 pre-finetune; 0.244 post-Phase-38 | 120s on both eligible validation attacks (Phase 33: partial — threshold crossed, no material near-onset rise) |
+| World Model (Phase 63 F1-selection attempt, NOT promoted) | In-distribution (same windows) | 0.3132 | 0.4989 | 0.2283 | 0.1424 | 0.5843 | 0.2397 | — |
+| World Model (canonical checkpoint) | Cross-day whole-day-03-02 stress test (different methodology) | 0.1489 | 0.1334 | 0.1684 | 0.1977 | 0.4714 | 0.0386 | — |
+| World Model (CTU-13 zero-shot) | Pending Phases 58–60 — no run yet | — | — | — | — | — | — | — |
+
+Stated plainly: **the world model trails the baseline on in-distribution F1
+(0.3454 vs. 0.7097), and Phase 63's genuine retraining attempt did not close
+the gap** (F1-selection picked a lower-FPR operating point but regressed raw
+F1 to 0.3132, so the canonical checkpoint was kept). The one-line rationale:
+validation loss anti-correlates with F1 on this task because the
+dynamics-MSE term (~95% of the joint loss at init) dominates checkpoint
+selection, and the infiltration head's probability mass collapses below the
+0.5 threshold with further training while ranking quality (AUC ≈ 0.55–0.60)
+barely moves. The temporal architecture's value therefore rests on
+early-warning rollout, stage mapping, and explainability — not raw F1
+superiority. The cross-day row uses a different, harder methodology
+(unseen-C2 whole-day generalization) and must not be compared directly
+against the in-distribution rows.
+
+## Explainability
+
+- **Attention visualization:** causal Transformer attention is extracted over
+  a real 64-window pre-attack validation context by
+  `python-ml/explain/attention_viz.py` (canonical implementation;
+  `training/run_phase39_attention.py` is a thin runner). Verified live:
+  shape [2 layers, 1 batch, 4 heads, 64, 64], zero future (non-causal) mass,
+  row-sum error 1.2e-07. Outputs: `results/phase39_attention_heatmap.png`,
+  `results/phase39_attention_summary.json`, and the tracked
+  `results/phase39_attention_weights.pt`.
+- **SHAP surrogate:** ExtraTrees regressor (100 trees, max depth 18) trained
+  on causal forecast-history features, saved at
+  `python-ml/weights/shap_surrogate_v1.joblib` (~28MB, tracked). Fidelity on
+  its seeded teacher-output holdout (10,555 train / 2,639 val rows, 1,289
+  features): **R2 0.9777**, Pearson 0.9894, MAE 0.00934, TreeSHAP additivity
+  error ~1.3e-15. This measures surrogate-to-teacher fidelity only — not
+  attack-detection or generalization performance.
+- **Explanation JSON schema** (every `/predict` response):
+  `{probability, predicted_stage, top_5_features[{feature, value,
+  shap_value}], attention_summary}` plus `rollout`, `surrogate`, `latency_ms`,
+  and `artifact_version: kairos.prediction.v1`.
+- **Latency (real end-to-end figures):** TreeSHAP attribution + JSON
+  construction median 108.2ms / p95 110.3ms / max 111.3ms (30 runs, target
+  <2s — passes); live HTTP `POST /predict` on a real 8-window contract
+  149.9ms total; live full-chain `/forecast/upload` 0.28–0.43s. If the
+  surrogate file is missing or corrupt, `/predict` returns a clean HTTP 503
+  (`explainability service unavailable`), never a 500.
+
+## MITRE ATT&CK Stage Mapping
+
+Per the Phase 37 decision (`retain_six_class_external_schema_no_merge` —
+no stages merged, no new labels sourced), the six-class schema is retained
+end to end, but only three stages have real training support in the
+selected CIC-IDS2018 days:
+
+- **Supported:** INITIAL_ACCESS, COMMAND_AND_CONTROL, IMPACT (live
+  per-class F1 ≈ 0.56 / 0.42 / 0.48 on the in-distribution split).
+- **Explicitly unsupported — do not present as working:**
+  RECONNAISSANCE, LATERAL_MOVEMENT, and EXFILTRATION have zero examples in
+  the selected contracts (F1 0.0 with zero support), so no validated
+  performance may be claimed for them. The demo must identify this coverage
+  limitation rather than imply full six-stage capability.
+
+## Offline Mode and Gemini Narrative Mode
+
+Two separate operating modes:
+
+- **Offline-local (default).** Deterministic template narrative, no network
+  call of any kind. Active unless *both* gating conditions below hold — and
+  it is the automatic fallback (`offline-local-fallback`) if Gemini throws.
+  Verified via the network-disabled full-stack test: real CSV upload
+  through Java → Python → narrative → UI with zero errors and zero external
+  calls (service logs contain no Gemini/Google API references).
+- **Gemini-enhanced (optional opt-in).** Requires explicit `ONLINE_MODE=true`
+  **and** an API key (`GEMINI_API_KEY` primary, `GOOGLE_API_KEY` legacy
+  fallback; optional `GEMINI_MODEL`, default `gemini-flash-latest`). With a
+  key present but `ONLINE_MODE` unset/false, the system stays offline. With
+  no key, Gemini is never invoked (unit-tested: offline-by-default and
+  failure-fallback cases pass). Gemini output is capped, plain-text-only,
+  and instructed to use only facts present in the prediction JSON.
+
+## Known Limitations
+
+- **Baseline gap is open:** world-model in-distribution F1 0.3454 vs.
+  frozen baseline 0.7097 on identical windows; Phase 63 attempt reached
+  0.3132 and was not promoted. See Benchmark Results for the rationale.
+- **Three MITRE stages unsupported:** Reconnaissance, Lateral Movement,
+  Exfiltration have no training examples; no performance claimed.
+- **CTU-13 zero-shot (Phases 58–60) not run:** no generalization numbers
+  exist; Scenario 6 must not be reused for it.
+- **Phase 33 is PARTIAL:** K=3 crosses the alert threshold 120s before
+  onset on both eligible attacks, but the probability-rise criterion did
+  not pass — early alerting, not a calibrated rising-risk trajectory.
+- **Cross-day generalization is weak:** F1 0.1489 on the whole-day-03-02
+  stress test (unseen C2 dynamics), tracked separately by design.
+- **Threshold dependence:** reported F1 values use the fixed 0.5 decision
+  threshold retained for comparability; lower thresholds raise F1 at steep
+  FPR cost (e.g. 0.55 F1 at FPR 0.97 for threshold 0.3).
+
+## Roadmap — Live-Capture and Active-Probe Extension (Phases 66–78)
+
+> The phases below extend KAIROS from static file analysis (PCAP/CSV upload)
+> to live network capture and, optionally, authorized active probing. This is
+> a distinct, higher-risk capability tier. Live passive capture and active
+> probing are NOT part of the verified, complete static pipeline described
+> above — they are planned/in-progress work, gated behind explicit
+> authorization, and must only be used on networks and hosts you own or are
+> explicitly authorized to test. Active probing in particular carries legal
+> responsibility resting entirely with the operator.
+
+| Phase | Deliverable | Exit Criterion |
+|---|---|---|
+| 66 | Live-capture architecture and threat/safety model | API contracts, scope policy, retention policy, interface lifecycle documented |
+| 67 | C++ interface enumeration and passive capture | Lists interfaces; captures a bounded local session with BPF filter and packet/drop counters |
+| 68 | C++ live feature-window emitter | Emits the existing packet and flow feature schema every 10 seconds from live packets |
+| 69 | Java JNI live-session bridge | Java starts/stops C++ capture and receives validated window events |
+| 70 | Java target resolver and consent gate | URL/IP validation, DNS pinning, allowlist/lab policy, audit session record |
+| 71 | Java sequence adapter | Live windows convert into kairos.sequence.v1 and pass schema validation |
+| 72 | Python live inference and drift guard | Same model accepts live sequence windows and emits score/stage/XAI plus quality state |
+| 73 | React live dashboard | Start/stop controls, live timeline, counters, stage/XAI panel |
+| 74 | Streaming transport | WebSocket/SSE live updates without full-page polling |
+| 75 | Authorized probe-and-observe mode | Conservative, explicitly gated discovery with an auditable safe profile |
+| 76 | Offline and safety regression tests | Passive mode works with network disabled after traffic generation; active mode requires explicit authorization flag |
+| 77 | Performance and packet-loss validation | Measured throughput, drop-rate behaviour, bounded memory, capture backpressure tested |
+| 78 | Demo scenario and docs | Local Docker/lab attack simulation, evidence screenshots, scope/limitations documentation |
+
+Status: not yet started — none of Phases 66–78 has begun, and no capability
+from this table is working. Do not describe any capability from this table
+as working until its own phase-specific exit criterion has been met and
+independently verified.
+
+## Reproducibility
+
+All commands below were verified live (Python suite 12/12, Java suite 20
+tests / 0 failures, checkpoint load test `LOAD TEST PASS`, offline upload
+matrix HTTP 200 with `offline-local` narrative):
 
 ```bash
-./scripts/download_cic_ids_2018.sh
+# 1. Reload the canonical checkpoint + rollout load test
+python-ml/venv/bin/python python-ml/training/load_test_checkpoint.py
+
+# 2. Reproduce the identical-split baseline (frozen logic; rewrites
+#    results/baseline_metrics_indist.json + weights — restore with
+#    `git checkout -- results python-ml/weights` afterwards if unwanted)
+python-ml/venv/bin/python python-ml/training/run_phase32_baseline_indist.py
+
+# 3. Reproduce the Phase 63 trajectory + comparison (promotes nothing;
+#    restores the canonical checkpoint automatically)
+python-ml/venv/bin/python python-ml/training/run_phase63_retrain.py
+
+# 4. Regenerate attention + surrogate artifacts
+python-ml/venv/bin/python python-ml/explain/attention_viz.py
+python-ml/venv/bin/python python-ml/training/run_phase40_43_explainability.py
+
+# 5. Rerun the offline demo (see Quick Start), then the test suites
+cd python-ml && ./venv/bin/python -m unittest tests.test_app tests.test_explainability tests.test_phase32_metrics
+cd ../java-engine && ./mvnw -o test
+cd ../react-ui && npm run build
 ```
 
-The versioned manifest records exact object sizes, SHA-256 checksums, row counts,
-label counts, attack windows, and known source anomalies.
-
-**CTU-13** — stratosphereips.org/datasets-ctu13. Scenario 6 (capture 47,
-DonBot) is the bounded packet-extractor development capture and is excluded from
-zero-shot scoring. The remaining untouched scenarios are available for frozen-model
-generalization evaluation. Download and verify Scenario 6 with:
-
-```bash
-./scripts/download_ctu13_scenario6.sh
-```
-
-**Raw PCAP note:** Phase 3 uses CTU-13 Scenario 6's privacy-preserving truncated
-complete-traffic capture (575 MiB compressed, 3.06 GiB extracted). Its TCP, UDP,
-and ICMP headers are retained while payload content is removed. The previously
-inventoried CIC raw days remain deliberately undownloaded at 37–50 GiB each.
-
-## Repository Structure
-
-```
-network-world-model/
-├── cpp-engine/                  # C++ packet-level feature extraction
-│   ├── CMakeLists.txt           # C++17: static lib + kairos_native JNI shared lib + CTest
-│   ├── include/
-│   │   └── feature_extractor.hpp   # typed flow-feature + port-scan API
-│   ├── src/
-│   │   ├── feature_extractor.cpp   # classic-PCAP/PCAPNG parser + flow aggregation
-│   │   └── jni_bridge.cpp          # JNI entry points for CppBridge
-│   └── tests/
-│       └── feature_extractor_test.cpp  # deterministic fixture tests (CTest)
-├── java-engine/                 # Java base orchestration engine
-│   ├── pom.xml                  # Maven (Spring Boot, Gemini SDK, OkHttp, JUnit;
-│   │                            # surefire always passes -Dkairos.native.library)
-│   └── src/main/java/com/networkwm/
-│       ├── Application.java          # Spring Boot entrypoint
-│       ├── ingestion/
-│       │   └── IngestionService.java     # streaming CIC CSV ingestion, NaN/Inf
-│       │                               # sanitize, timeline stage labels
-│       ├── window/
-│       │   └── WindowingService.java     # 10s windows + per-host aggregation
-│       ├── graph/
-│       │   ├── GraphConstructionService.java  # host-flow graph snapshots
-│       │   ├── GraphContractService.java      # kairos.sequence.v1 JSON contract
-│       │   ├── CicGraphDatasetService.java    # vector-mode CIC export
-│       │   └── CicDatasetExporter.java        # offline CLI: CSV -> contract JSON
-│       ├── bridge/
-│       │   ├── CppBridge.java             # typed JNI bridge to cpp-engine
-│       │   └── PythonMlClient.java        # REST client to python-ml
-│       ├── narrative/
-│       │   └── GeminiNarrativeService.java # narrative service + local fallback
-│       └── api/
-│           └── ForecastController.java     # public /forecast REST controller
-├── python-ml/                   # Python GNN/Transformer world model service
-│   ├── requirements.txt / requirements-dev.txt
-│   ├── app.py                   # Flask entrypoint + /predict route
-│   ├── pipeline/
-│   │   ├── downsample_flows.py      # seeded (42) stratified 200K/day capping
-│   │   ├── extract_flow.py          # feature-schema validation
-│   │   ├── graph_builder.py         # kairos.sequence.v1 loader (PyG)
-│   │   └── graph_dataset.py         # ordered DataLoader batching
-│   ├── model/
-│   │   ├── encoder_gnn.py           # edge-aware GraphSAGE + pooling
-│   │   ├── dynamics_transformer.py  # causal Transformer + K-step rollout
-│   │   ├── forecast_heads.py        # sigmoid/softmax heads + focal joint loss
-│   │   └── world_model.py           # NetworkWorldModel (encoder+dynamics+heads)
-│   ├── training/
-│   │   ├── world_model_trainer.py   # day-split training + best-checkpoint loop
-│   │   ├── dynamics_trainer.py      # embedding-level dynamics training
-│   │   ├── run_world_model.py       # CLI trainer entrypoint
-│   │   ├── run_fix3_training.py     # Fix 3 run: train day14/15/28, val day0302
-│   │   └── load_test_checkpoint.py  # Fix 3 load test: forward + K-step rollout
-│   ├── explain/
-│   │   ├── attention_viz.py         # attention heatmap viz
-│   │   └── shap_explain.py          # SHAP-via-surrogate explainability
-│   ├── baseline/
-│   │   ├── logistic_regression.py   # flattened LR baselines + metrics (frozen)
-│   │   └── run_baseline.py          # CLI baseline runner (repo-rooted paths)
-│   ├── configs/
-│   │   └── train_config.yaml        # real run config: 10s windows, K=5,
-│   │                               # lr 1e-3, 5 epochs, day14/15/28 train,
-│   │                               # day0302 validation
-│   ├── weights/
-│   │   ├── README.md                # reproduction steps (weights committed, <100MB)
-│   │   ├── world_model_v1.pt        # trained checkpoint (603KB, epoch 1 best)
-│   │   └── baseline_*.joblib       # frozen baseline scaler + LR models
-│   └── tests/
-│       ├── test_encoder_gnn.py
-│       ├── test_graph_builder.py
-│       ├── test_logistic_regression.py
-│       └── test_world_model.py
-├── react-ui/                    # React demo dashboard
-│   ├── package.json
-│   ├── src/
-│   │   ├── App.jsx                  # root shell component
-│   │   ├── index.js
-│   │   ├── components/
-│   │   │   ├── ProbabilityTimeline.jsx   # probability time series chart
-│   │   │   ├── FlaggedFlowsTable.jsx     # top-N flagged flows table
-│   │   │   ├── StageAnnotations.jsx      # MITRE-stage color overlay
-│   │   │   └── NarrativePanel.jsx        # narrative panel
-│   │   └── api/
-│   │       └── client.js            # axios client to java-engine REST API
-│   └── public/
-│       └── .gitkeep
-├── data/
-│   ├── raw/                     # raw inputs (gitignored; manifests tracked)
-│   │   └── ctu13_pcap/scenario06_donbot/  # canonical CTU-13 path (underscore);
-│   │                               # capture20110816.truncated.pcap: 38,705,338
-│   │                               # packets, 7749.87s (02:09:10), verified
-│   ├── processed/               # parsed outputs (gitignored; manifests tracked)
-│   │   ├── cic2018_capped/        # 200K/day seeded capped CSVs (seed 42)
-│   │   └── graph_contracts/       # day14/day15/day28/day0302.json (10s windows)
-│   ├── cic_ids_2018_manifest.yaml # verified day metadata + downsampling entry
-│   │                             # (seed, script, quotas; inline attack_windows
-│   │                             # are the single timeline convention)
-│   ├── cic_ids_2018_pcap_inventory.yaml # superseded raw-capture inventory
-│   └── ctu13_scenario6_manifest.yaml # PCAPNG metadata + capinfos provenance
-│                               # (packet count, duration, SHA-256)
-├── results/                     # benchmark artifacts (tracked: *.json/*.yaml/
-│                               # *.png/*.csv/*.md) — baseline_metrics.json,
-│                               # training_log.json, loss_curve.png, ...
-├── docs/
-│   ├── architecture.md          # standalone architecture + inter-service reference
-│   ├── implementationplan.md    # canonical 65-phase deliverable list
-│   ├── phase-status.md          # measured results + known limitations
-│   └── graph-contract-v1.md     # kairos.sequence.v1 wire contract
-├── scripts/
-│   ├── download_cic_ids_2018.sh # verified processed-CSV downloader
-│   └── download_ctu13_scenario6.sh # verified capture downloader/extractor
-├── .gitignore                   # C++/Java/Python/Node/data/weights/results excludes
-│                               # (results artifacts + final weights whitelisted)
-└── README.md                    # this file
-```
-
-## Development setup
-
-Use Linux or WSL with Java 17+ and Python 3.12. Select the Node version from
-`.node-version` using your preferred version manager. CMake is installed in the
-Python environment, and Maven is supplied by the checked-in wrapper.
-
-```bash
-python3 -m venv .venv
-.venv/bin/pip install -r python-ml/requirements-dev.txt
-
-.venv/bin/cmake -S cpp-engine -B cpp-engine/cmake-build-local
-.venv/bin/cmake --build cpp-engine/cmake-build-local
-
-(cd java-engine && ./mvnw test)
-(cd react-ui && npm ci && npm run build)
-```
-
-The first dependency installation requires internet access. Runtime inference
-and the complete demonstration must work offline when `ONLINE_MODE=false`.
-
-## Full Project Roadmap
-
-> Stack: C++ (packet features) / Java (base engine) / Python (GNN+Transformer+SHAP)
-> / Gemini API (optional narrative layer) / React (UI).
->
-> **Compliance note:** the PS requires the demo to run fully offline with no cloud
-> dependencies. Gemini is cloud-based, so it is built as an OPTIONAL toggle with a
-> local rule-based fallback narrative generator — the core submission must pass
-> fully offline; Gemini is a "bonus mode" for live demos with internet available
-> (Phase 47–49). The full phase-by-phase list is reproduced below and maintained canonically in
-[`docs/implementationplan.md`](docs/implementationplan.md).
-
-**Phase 0 — Monorepo skeleton + README.** Create the 4-layer folder structure (cpp-engine/, java-engine/, python-ml/, react-ui/), stub files with docstrings only, populated dependency manifests (CMakeLists.txt, pom.xml, requirements.txt, package.json), .gitignore, and a README with full research writeup + architecture diagram.
-
-**Phase 1 — Environment setup across all layers.** Verify C++17 compiler + CMake build, Java 17+ + Maven compile, Python venv + torch/torch-geometric compatibility, Node/React build, and provision `.env.example` for `GEMINI_API_KEY`.
-
-**Phase 2 — CIC-IDS2018 acquisition.** Download processed CSVs via `aws s3 sync --no-sign-request`; select 3-4 attack days (brute-force, DoS/DDoS, infiltration, botnet) per the published schedule; verify row counts.
-
-**Phase 3 — CTU-13 Scenario 6 truncated-capture acquisition.** Download the official privacy-preserving truncated complete-traffic capture (602,748,112-byte `.bz2`, verified SHA-256), decompress to `data/raw/ctu13_pcap/scenario06_donbot/capture20110816.truncated.pcap`, and verify with `tshark` + `capinfos` (38,705,338 packets, 7749.87s / 02:09:10, headers retained, payload removed). Scenario 6 is the packet-extractor development capture and is excluded from zero-shot scoring.
-
-**Phase 4 — C++ packet-level feature extractor core.** Implement `feature_extractor.cpp`/`.hpp`: parse PCAPs, compute TTL mean/variance, TCP window size trend, IP fragment flag count, retransmission count, payload size mean/std/skew per 5-tuple flow.
-
-**Phase 5 — C++ port-scan signature detector.** Per src IP per window, count unique dst ports touched, classify sequential vs. randomized access pattern; expose as a callable function in the same C++ module.
-
-**Phase 6 — C++ unit tests + shared library build.** Write unit tests for the feature extractor against a small known PCAP sample; build as a shared library (.so/.dll) ready for JNI/JNA linkage.
-
-**Phase 7 — Java-to-C++ bridge (CppBridge.java).** Implement JNI or JNA bindings calling into the compiled C++ shared library; verify a round-trip call from Java returns correct feature values on a test PCAP.
-
-**Phase 8 — Java flow CSV ingestion.** Implement flow-level CSV parsing in `IngestionService.java`: normalize CICFlowMeter headers, drop non-feature columns, clip/handle Infinity/NaN values, attach stage labels from published attack timelines.
-
-**Phase 9 — Java windowing + host aggregation.** Bucket flows into time windows (10s default); aggregate per-host stats (byte totals, unique dst ports, SYN:ACK ratio); merge in C++-extracted packet-level features per window via the bridge.
-
-**Phase 10 — Java graph construction.** Build per-window host-flow graph structures (nodes=hosts, edges=flows with combined flow+packet feature vectors) in Java; this becomes the state representation handed to Python.
-
-**Phase 11 — Java-Python serialization contract.** Define and implement a JSON/Parquet schema for serializing graph snapshots + labels from Java; write the corresponding Python-side loader stub; verify one full window round-trips correctly.
-
-**Phase 12 — Python baseline feature flattening.** Flatten the Java-exported per-window graphs into non-temporal feature rows for the logistic regression baseline.
-
-**Phase 13 — Python time-based split + scaling.** Apply `StandardScaler`; split train/test strictly by time, never randomly shuffled across windows.
-
-**Phase 14 — Python multinomial logistic regression.** Train on the 6-class MITRE stage label; log training time and convergence behavior.
-
-**Phase 15 — Python binary logistic regression.** Train a second LR for binary infiltration-vs-not for direct comparison metrics.
-
-**Phase 16 — Baseline evaluation + freeze.** Compute F1/precision/recall/FPR, save confusion matrices, log to `results/baseline_metrics.json`, git-tag `baseline-v1`, freeze this code.
-
-**Phase 17 — Python GNN encoder skeleton.** Implement 2-3 layer GraphSAGE over each per-window graph loaded from the Java-exported format.
-
-**Phase 18 — Pooling layer.** Implement mean/attention pooling compressing each graph into a fixed-size embedding per timestep.
-
-**Phase 19 — Encoder overfit sanity test.** Overfit encoder + trivial linear head on ~50 windows; confirm loss drops near-zero before scaling up.
-
-**Phase 20 — Batch pipeline integration.** Wire the encoder into a `torch_geometric` DataLoader batching variable-sized graphs across a full attack day.
-
-**Phase 21 — Temporal dynamics model skeleton.** Implement Transformer (4-head, 2-layer) or LSTM fallback with temporal positional encoding.
-
-**Phase 22 — Next-state training objective.** Teacher-forced next-embedding prediction using MSE/contrastive loss against the true next embedding.
-
-**Phase 23 — Dynamics training loop.** Implement training loop with checkpointing, gradient clipping, validation split by day.
-
-**Phase 24 — Loss curve verification.** Run several epochs; confirm the model learns transitions, not memorization.
-
-**Phase 25 — Autoregressive rollout.** Implement K-step rollout feeding the model's own predictions back in as input for subsequent steps.
-
-**Phase 26 — Infiltration probability head.** Sigmoid head on top of rolled-forward latent states.
-
-**Phase 27 — MITRE stage head.** Softmax head (6 classes) sharing the same rolled-forward latents.
-
-**Phase 28 — Joint loss + class imbalance handling.** Combine dynamics + head losses with tunable weights; use focal loss for classification heads.
-
-**Phase 29 — Full dataset training run.** Train end-to-end on selected CIC-IDS2018 days, splitting train/val by day.
-
-**Phase 30 — Checkpointing + config logging.** Save `weights/world_model_v1.pt` and exact training config for reproducibility.
-
-**Phase 31 — Ablation: window size.** Compare 5s/10s/30s windows by validation F1.
-
-**Phase 32 — Ablation: K and GNN-vs-flat.** Test K=3/5/10 and GNN vs. flattened-vector encoder; pick best combo.
-
-**Phase 33 — Rollout proof-of-concept check.** Plot rollout probability curves for sample attacks, confirming rise before true attack timestamp; compare against frozen baseline.
-
-**Phase 34 — MITRE heuristic cross-check.** Compare stage-head predictions against the manual mapping table.
-
-**Phase 35 — Per-class error analysis.** Identify which ATT&CK stages the model confuses most.
-
-**Phase 36 — Label relabeling pass.** Manually correct ambiguous timeline-derived labels.
-
-**Phase 37 — Stage-set decision.** Decide whether to merge weak stages (e.g., Lateral Movement into Initial Access); document rationale.
-
-**Phase 38 — Stage head fine-tune.** Retrain stage head only (freeze dynamics + encoder) with corrected labels.
-
-**Phase 39 — Attention extraction.** Pull attention weights from Transformer/GAT layers into a heatmap format.
-
-**Phase 40 — SHAP surrogate model.** Train a distilled gradient-boosted tree/shallow MLP approximating the world model's forecast output.
-
-**Phase 41 — SHAP integration.** Run KernelSHAP/TreeSHAP on the surrogate; validate plausibility of top features.
-
-**Phase 42 — Explanation object schema.** Standardize output JSON: `{probability, predicted_stage, top_5_features, attention_summary}` — this is the contract Java will consume.
-
-**Phase 43 — Explainability latency check.** Confirm full explanation generation runs under 2 seconds per window.
-
-**Phase 44 — Python Flask /predict endpoint.** Wrap the full inference chain (graph load -> rollout -> heads -> explain) behind a single REST endpoint returning the Phase 42 JSON schema.
-
-**Phase 45 — Java PythonMlClient integration.** Implement the REST client calling `/predict`, parsing the JSON response into Java objects.
-
-**Phase 46 — Java ForecastController REST API.** Expose a `/forecast` endpoint for React, orchestrating C++ extraction -> windowing/graph build -> Python inference in one request.
-
-**Phase 47 — Local fallback narrative generator (offline-compliant).** Implement a rule-based/template narrative generator in Java (no external API) that converts the Phase 42 JSON into a readable sentence — this satisfies the PS's offline requirement as the default mode.
-
-**Phase 48 — Gemini narrative service (optional mode).** Implement `GeminiNarrativeService.java` using the Google Gen AI Java SDK, sending the structured prediction JSON to Gemini (e.g. `gemini-2.5-flash-lite`) for a richer analyst briefing; gate behind a config flag/env check so it's skipped entirely when offline or no API key is present.
-
-**Phase 49 — Narrative mode toggle wiring.** Wire `ForecastController` to use the Phase 47 local generator by default, switching to Phase 48's Gemini service only if `GEMINI_API_KEY` is present and a `--online-mode` flag is set.
-
-**Phase 50 — End-to-end backend integration test.** Full chain test: PCAP/CSV upload -> C++ parse -> Java windowing/graph -> Python inference -> narrative (local or Gemini) -> single JSON API response.
-
-**Phase 51 — React app skeleton + upload wiring.** Build file upload component calling the Java `/forecast` endpoint.
-
-**Phase 52 — React probability timeline chart.** Render the infiltration-probability time series with an alert threshold line.
-
-**Phase 53 — React flagged flows table.** Display top-N contributing flows per alerted window from the SHAP output.
-
-**Phase 54 — React stage annotations overlay.** Color-code the timeline by predicted MITRE stage per window.
-
-**Phase 55 — React narrative panel.** Display the local or Gemini-generated narrative text, with a visible indicator of which mode produced it.
-
-**Phase 56 — Offline compliance verification.** Disable network access entirely, confirm full pipeline (upload -> timeline -> table -> annotations -> local narrative) works with zero errors and zero external calls.
-
-**Phase 57 — Demo polish.** Add a "load sample attack" quick-load button pre-populated with a known test file; cold-restart test of the full stack.
-
-**Phase 58 — CTU-13 pipeline adaptation.** Adapt Java ingestion + C++ extraction to compute CTU-13 features into the same schema.
-
-**Phase 59 — CTU-13 zero-shot inference.** Run the frozen, already-trained world model on CTU-13 via the full pipeline (no retraining).
-
-**Phase 60 — CTU-13 metrics + generalization analysis.** Compute F1/precision/recall/FPR on CTU-13; compare against CIC-IDS2018 results; note the generalization gap honestly.
-
-**Phase 61 — Benchmark table finalization.** Compile the full comparison table: Logistic Regression vs. World Model (CIC-IDS2018) vs. World Model (CTU-13), across F1/Precision/Recall/FPR/early-warning lead time.
-
-**Phase 62 — Documentation completion.** Finalize README and `docs/architecture.md` with reproducibility instructions, results, explainability screenshots, offline-vs-Gemini mode explanation, and limitations.
-
-**Phase 63 — Demo video recording.** Record a 2-3 minute walkthrough covering both offline mode and the Gemini-enhanced narrative mode.
-
-**Phase 64 — Pitch deck build.** Problem -> 4-layer architecture rationale -> benchmark results -> CII-applicability angle (offline-by-default, explainable, optional AI-narrative enhancement).
-
-**Phase 65 — Final end-to-end reproducibility check.** Clean-clone the repo, rebuild all four toolchains from scratch, rerun training from saved config, confirm near-identical metrics, confirm the full offline demo launches with documented commands.
-
-## Environment Variables
-
-Secrets live in a local `.env` file and are never committed. Copy
-`.env.example` to `.env` and fill in the values:
-
-```
-ONLINE_MODE=false
-GEMINI_API_KEY=
-```
-
-The Java service owns CSV/PCAP ingestion, time-window aggregation, attack-stage
-label attachment, and host-flow graph construction. Python receives the
-versioned graph snapshot contract, converts it to PyTorch Geometric objects,
-and owns training and inference. The browser calls Java at `POST /forecast`;
-Java calls the private Python ML endpoint at `POST /predict`.
-
-## Current Status
-
-Phase 0 complete - the monorepo skeleton, dependency manifests, architecture,
-roadmap, ignore rules, environment template, and service-boundary decisions are
-in place.
-
-Phase 1 complete - clean C++17/CMake, Java 21/Maven Wrapper, Python 3.12 with
-PyTorch/PyTorch Geometric, and Node 24/React builds have been verified. The
-offline environment template is present.
-
-Phase 2 complete - four complementary CIC-IDS2018 attack days (brute force,
-DoS, infiltration, and botnet) are downloaded and verified by exact byte size,
-SHA-256, row count, and label distribution. Their attack windows and source-data
-anomalies are recorded in the manifest.
-
-Phase 3 complete - the official CTU-13 Scenario 6 truncated complete-traffic
-capture is downloaded, checksum-verified, and extracted. The 575 MiB archive
-expands to a 3.06 GiB PCAPNG file; Scenario 6 is excluded from zero-shot scoring.
-
-Phase 4 complete and normalized for that capture - the C++17 extractor parses
-classic PCAP and PCAPNG Ethernet/raw-IPv4 traffic, groups TCP/UDP/ICMP flows,
-reconstructs logical payload lengths from retained headers, and reports
-truncated-packet counts. A full 3.28 GB scan completed without errors: 17,412,467
-supported packets across 1,976,965 emitted batch-flow records.
-
-Phase 5 complete - each extraction window now counts unique destination ports per
-source IP and classifies threshold-crossing activity as sequential or randomized
-using first-seen port order. Thresholds are configurable, the detector is callable
-standalone or through `extract_next_batch_analysis`, and sanitizer plus real CTU-13
-integration tests pass.
-
-Phase 6 complete - CTest now exercises the extractor and port-scan detector
-against a deterministic raw-IPv4 PCAP fixture. CMake produces both the static
-core and the position-independent `libkairos_native.so` shared library (or the
-platform-equivalent DLL/dylib) with exported JNI entry points.
-
-Phase 7 complete - `CppBridge.java` loads the native library, validates call
-parameters, invokes C++ through JNI, and deserializes typed flow and port-scan
-records. A Java-to-C++ round-trip test verifies exact TTL and payload statistics.
-
-Phase 8 complete - `IngestionService.java` streams CICFlowMeter CSV rows,
-normalizes headers and the known `Infilteration` label anomaly, drops metadata,
-sanitizes missing/NaN/Infinity/out-of-range numeric values, and assigns attack
-stages from the published CIC-IDS2018 timelines. Tests include the real 613,104-row
-infiltration file and its 33 repeated header rows.
-
-Phases 9-11 complete - ten-second windowing merges flow and packet features,
-computes host aggregates, builds ordered host-flow graphs, and validates the
-versioned `kairos.sequence.v1` Java/Python contract. Endpoint-free CIC CSVs use
-an explicit `__network__` vector-mode node; host identities are never invented.
-
-Phases 12-16 complete and frozen (git tag `baseline-v1`) - the reproducible baseline flattens graph windows, fits
-`StandardScaler` on past training windows only, trains converged binary and
-multinomial logistic regressions, and saves metrics, confusion matrices, scaler,
-and model artifacts. On the strict final 20% holdout (10,561 train / 2,641 test
-windows over the joined day14/day15/day28/day0302 contracts) the binary baseline reaches
-F1 0.3096, precision 0.5730, recall 0.2121, and FPR 0.0352; see
-`results/baseline_metrics.json`. Stage macro-F1 is
-0.0 because the held-out tail is Command-and-Control while that stage is absent
-from earlier training windows; this is retained as an honest unseen-class result.
-`git diff baseline-v1 -- python-ml/baseline/` must stay empty; any future change
-to baseline logic needs a new tag and explicit justification.
-
-Phases 17-20 complete - a two/three-layer edge-aware GraphSAGE encoder supports
-mean or attention pooling, passes a near-zero-loss small-set overfit check, and
-batches variable-size PyTorch Geometric graphs without shuffling time order.
-
-Phases 21-28 complete - a causal two-layer Transformer with sinusoidal positions
-implements teacher-forced next-state learning and K-step autoregressive rollout.
-Shared infiltration and six-stage heads train with focal classification losses,
-gradient clipping, day-based validation, and best-checkpoint selection.
-
-Phases 29-30 complete - 800,001 capped CIC flows (seed-42 stratified capping;
-see `data/cic_ids_2018_manifest.yaml` downsampling entry) were compacted into 13,202
-ordered graph windows across four day-level contracts (day14: 3,253; day15: 3,413;
-day28: 3,393; day0302: 3,143). A five-epoch end-to-end
-run trained on the first three days (10,059 windows) and held out 2 March as a complete validation
-day (3,143 windows; settings in `python-ml/configs/train_config.yaml`: 10s windows, K=5,
-lr 1e-3, chunk 64, seed 42). Training loss fell 0.2647 -> 0.1222 -> 0.1032 -> 0.0883 -> 0.0845;
-validation was best at epoch 1 (0.6115), so `python-ml/weights/world_model_v1.pt`
-(603KB) stores that epoch rather than the overfit later epochs. Exact configuration
-and loss history are saved in `results/world_model_config.json`,
-`results/world_model_history.json`, `results/training_log.json`, and
-`results/loss_curve.png`; `python-ml/training/load_test_checkpoint.py` verifies
-a forward pass plus a full K=5 rollout with finite, correctly shaped output.
-Weights are committed directly (under ~100MB; see `python-ml/weights/README.md`
-for reproduction steps).
-Phase 31 complete — window size ablation finalized, winner: 10s. Stage macro-F1 diagnostic resolved: root cause is a coverage gap, not single-day data (training already spans all 4 selected days; validation stage C2 is disjoint from training stages IA/Impact, and Recon/Lateral/Exfil appear nowhere) — loss starvation ruled out (99.13% accuracy on seen IA windows). No expansion possible within current selection; deferred to Phase 34 with rationale in results/ablation_window_size.md. No checkpoint change (world_model_v1.pt stands; no singleday archive — current checkpoint IS the multi-day one). Next: Phase 32 (ablation: K and GNN-vs-flat).
-Phase 32 complete after seeded loss/alpha, encoder, and rollout-horizon ablations.
-The winner is the GNN with alpha 0.75 and loss weights 0.5/3/3, using K=3:
-in-distribution infiltration F1 0.3545, precision 0.5027, recall 0.2738, and
-FPR 0.1694. The flat encoder scored F1 0.0. Cross-day F1 is 0.1455, retained
-as an explicit generalization limitation. See `results/phase32_completed.json`.
-
-Phases 33-39 complete. K=3 produced 120-second early alerts for both eligible
-validation attacks, but the probability-rise criterion did not pass, so Phase 33
-is marked partial rather than overstated. The six-stage mapping was audited,
-the frozen stage head improved observed-class macro-F1 from 0.0667 to 0.3302,
-and causal Transformer attention extraction passes its mask and normalization
-checks. Reconnaissance, lateral movement, and exfiltration remain unsupported
-by the selected CIC training days.
-
-Phases 40-43 complete. The causal-history TreeSHAP surrogate reaches R2 0.9746
-and Pearson 0.9875 on its seeded teacher-output holdout; this is surrogate
-fidelity, not detector generalization. SHAP additivity error is below 3e-15 and
-explanation generation is below 170 ms in the recorded test.
-
-Phases 44-47 complete for the graph-contract backend path. Flask `POST /predict`
-runs graph loading, GNN/Transformer inference, K=3 rollout, attention, and SHAP.
-Java has a typed Python client and public `POST /forecast` endpoint, with a
-deterministic offline-local analyst narrative. File-upload orchestration,
-optional Gemini mode, React dashboard wiring, and full offline end-to-end
-verification remain Phase 48 onward.
-
-Phases 0-63 complete. Static pipeline (C++/Java/Python/React) fully verified
-end-to-end, offline by default, optional Gemini narrative mode gated and
-tested. World model retrained with F1-based checkpoint selection (same proven
-recipe, 6 epochs, no added regularization — added dropout/weight-decay/cosine
-and aggressive loss rebalancing were all trialed and rejected by evidence):
-in-distribution F1 0.3132 for the F1-selected state vs 0.3454 for the kept
-canonical checkpoint (baseline F1 0.7097), cross-day F1 0.1340 vs 0.1489,
-stage macro-F1 0.2397 vs 0.244. The baseline gap remains open with stated
-rationale — the temporal architecture's value proposition rests on
-explainability, stage mapping, and rollout capability rather than raw F1
-superiority; see `results/phase63_retrain.json` and
-`results/benchmark_table.csv`. CTU-13 zero-shot generalization test (Phases
-58-60) intentionally deferred — to be run on a scenario other than Scenario 6
-(DonBot, reserved for packet-level development) to preserve leakage-free
-evaluation. Next: Phase 66 (live-capture architecture and threat/safety
-model).
+The benchmark table (`results/benchmark_table.csv`) is committed; its rows
+trace to `results/baseline_metrics_indist.json` (baseline),
+`results/phase32_completed.json` + live evaluation (canonical world model),
+`results/phase63_retrain.json` (attempt row), and the cross-day live
+evaluation. Tracked weights follow the size-gated policy in
+`.gitignore`/`python-ml/weights/README.md` (final artifacts committed;
+regenerable intermediates documented, not committed).
+
+## Contribution / License / Acknowledgments
+
+No license file is currently committed; contributions follow the existing
+per-layer conventions (typed, tested, offline-first) and must keep
+`git diff baseline-v1 -- python-ml/baseline/` empty. Data acknowledgments:
+CSE-CIC-IDS2018 (Registry of Open Data on AWS) for primary training data;
+the Stratosphere Laboratory CTU-13 dataset for the Scenario 6 development
+capture (CC-BY). Results, manifests, and phase-status records in
+`results/` and `docs/phase-status.md` are the authoritative references —
+this README summarizes them and must not be cited over them where they
+differ.
