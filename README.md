@@ -547,3 +547,324 @@ superiority; see `results/phase63_retrain.json` and
 (DonBot, reserved for packet-level development) to preserve leakage-free
 evaluation. Next: Phase 66 (live-capture architecture and threat/safety
 model).
+
+---
+
+# Verified Static-Pipeline Supplement (Appended — Phases 0–63 Evidence Only)
+
+> This section is appended to the existing README without altering any line
+> above. Where it differs from earlier prose, this supplement (which traces
+> every number to `results/` artifacts and live verifications) takes
+> precedence. Nothing in Phases 66–78 below is working — that roadmap is
+> planned work only.
+
+## 1. Title + Summary (Verified Scope)
+
+KAIROS (Network Attack World Model) learns network-traffic
+state-transition dynamics — P(S_t+1 | S_t) — and forecasts attacker
+progression before compromise using K-step autoregressive rollout of the
+learned dynamics instead of classifying the present. Current real scope:
+the static offline pipeline (file upload → windowing → graph build →
+world-model inference → explanation → analyst narrative → dashboard) is
+complete and verified end-to-end (Phases 0–63), offline by default, with
+the baseline F1 gap honestly open (see Benchmark Results). The
+live-capture and authorized active-probe extension (Phases 66–78) is
+planned as a separate, higher-risk tier and has not started.
+
+## 2. Architecture Overview (Verified)
+
+Four-layer stack, one language per layer, plus an optional narrative layer:
+
+- **C++ (cpp-engine):** packet-level feature extraction (PCAP/PCAPNG
+  parsing, flow aggregation, logical payload-length reconstruction from
+  retained headers, per-window port-scan signature detector:
+  sequential vs. randomized). Exposed to Java via JNI
+  (`libkairos_native.so`).
+- **Java (java-engine):** orchestration engine and REST API (CSV ingestion,
+  10-second windowing, host-flow graph construction, versioned
+  `kairos.sequence.v1` contract, typed `PythonMlClient` REST client,
+  narrative services, public `POST /forecast` and
+  `POST /forecast/upload`, Spring Boot).
+- **Python (python-ml):** world-model inference service (Flask). GraphSAGE
+  encoder → causal Transformer dynamics → K-step rollout → infiltration
+  and stage forecast heads → SHAP/attention explanation. Internal
+  `POST /predict` (never called by the browser).
+- **React (react-ui):** dashboard (upload form, probability timeline,
+  flagged flows table, stage annotations, narrative panel with mode badge,
+  sample-attack quick-load button). Calls Java at
+  `POST /forecast/upload`.
+- **Narrative default: offline-local.** The deterministic rule-based
+  generator is the default and requires no network call. Gemini
+  enhancement requires **both** `ONLINE_MODE=true` **and** an API key
+  (`GEMINI_API_KEY` primary, `GOOGLE_API_KEY` accepted as legacy
+  fallback); any Gemini failure falls back to a local narrative. Gemini
+  supplements and never replaces SHAP/attention output.
+
+```
+Raw PCAP / CSV
+      |
+      v
+[C++ Packet Feature Extraction]  -- cpp-engine (libpcap)
+      v
+[Java Ingestion Service]  -- java-engine (10s windows)
+      v
+[Java Windowing + Graph Builder]  -- per-window host-flow graphs
+      v
+[REST: POST /predict]  -- java-engine -> python-ml
+      v
+[python-ml World Model Service]  (Flask)
+      +-- [GNN Encoder: GraphSAGE]  -> per-window graph embedding
+      +-- [Temporal Dynamics: Transformer]  learns P(S_t+1 | S_t)
+      +-- [K-Step Autoregressive Rollout]  t+1 .. t+K predicted states
+      +-- [Forecast Heads]  infiltration probability (sigmoid) +
+      |                     MITRE ATT&CK stage (softmax, 6 classes)
+      `-- [SHAP Explainer]  distilled surrogate -> top features
+      v
+[JSON response]  probability + predicted stage + SHAP features
+      v
+[Java Narrative Service]  -- default: local (offline);
+      |                        optional: Gemini API (explicit opt-in)
+      v
+[React Dashboard]  -- timeline, flagged flows, stages, narrative
+```
+
+## 3. Quick Start (Offline Demo — Tested Commands Only)
+
+Verified live (full stack, network disabled, real CSV upload → narrative,
+zero errors, zero external calls; sample upload answered in 0.28–0.43s;
+cold start ≈ Java boot ~1.4s + first inference ~0.3s, well under 30s).
+
+```bash
+# Environment setup per layer (all verified)
+cmake -S cpp-engine -B cpp-engine/cmake-build-local \
+  && cmake --build cpp-engine/cmake-build-local   # C++17, libkairos_native.so
+export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64  # JDK 17+, tested on 21
+# Maven via checked-in wrapper; full suite passes offline:
+cd java-engine && ./mvnw -o test   # 20 tests, 0 failures (1 pre-existing skip)
+python3 -m venv python-ml/venv \
+  && python-ml/venv/bin/pip install -r python-ml/requirements.txt
+# Pinned CPU-only deps (tested on Python 3.13): torch==2.14.0+cpu,
+# torch-geometric==2.8.0.post1, Flask==3.1.3, shap==0.52.0,
+# scikit-learn==1.9.1
+cd react-ui && npm ci && npm run build  # Node 24.21.0 (.node-version),
+                                        # React 18, react-scripts ^5.0.1
+cp .env.example .env  # ships ONLINE_MODE=false with empty key
+# Ensure neither GEMINI_API_KEY nor GOOGLE_API_KEY is set.
+```
+
+```bash
+# Terminal 1 — Python ML service (default port 5000)
+ONLINE_MODE=false python-ml/venv/bin/python python-ml/app.py
+# Terminal 2 — Java engine (default port 8080)
+export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
+cd java-engine && ONLINE_MODE=false ./mvnw spring-boot:run
+# Terminal 3 — full-chain upload (verified live)
+curl -X POST http://127.0.0.1:8080/forecast/upload \
+  -F "file=@react-ui/public/sample-attack.csv;type=text/csv" \
+  -F "rolloutSteps=3"
+```
+
+Expected (verified live): HTTP 200 with
+`{artifactVersion, prediction, narrative}` — probability ≈ 0.59, stage
+`COMMAND_AND_CONTROL`, `narrative.mode` = `offline-local`.
+
+## 4. Datasets (Verified)
+
+- **CSE-CIC-IDS2018:** exactly four days — 2018-02-14, 2018-02-15,
+  2018-02-28, 2018-03-02. Each capped to 200,000 flows, seed 42, via
+  `python-ml/pipeline/downsample_flows.py` (stratified,
+  class-ratio-preserving; see `data/cic_ids_2018_manifest.yaml`), exported
+  to 10-second graph contracts
+  (`data/processed/graph_contracts/day14/day15/day28/day0302.json`):
+  3,253 + 3,413 + 3,393 + 3,143 = 13,202 ordered windows. Raw/processed
+  data dirs are gitignored (local `data/` ≈ 4.7G); manifests tracked.
+- **CTU-13 Scenario 6 / DonBot (capture 47):** reserved for packet-level
+  feature development ONLY — official privacy-preserving truncated
+  complete-traffic capture (602,748,112-byte `.bz2`, SHA-256-verified;
+  38,705,338 packets, 7749.87s / 02:09:10, headers retained, payload
+  removed) at `data/raw/ctu13_pcap/scenario06_donbot/`
+  (`data/ctu13_scenario6_manifest.yaml`). **Explicitly excluded from any
+  zero-shot generalization test** — Phases 58–60 must use a different
+  CTU-13 scenario.
+
+## 5. Model Architecture and Training (Post-Phase-63 Canonical Checkpoint)
+
+- **GNN encoder:** edge-aware GraphSAGE, 2 layers, hidden dim 64, state
+  dim 64, attention pooling, dropout 0.1. (No GAT in code.)
+- **Dynamics:** causal Transformer, 2 layers, 4 heads, sinusoidal
+  positional encoding, dropout 0.1. (No LSTM in code.)
+- **Rollout:** K-step autoregressive; K=3 selected (K=3/5/10 ablated).
+  Services accept rollout steps 1–10.
+- **Heads:** sigmoid infiltration-probability + 6-class softmax
+  MITRE-stage head on shared rolled-forward latents; focal losses +
+  dynamics MSE, gradient clipping.
+- **Canonical checkpoint** (`python-ml/weights/world_model_v1.pt`, 603KB,
+  `kairos.world-model.v1.phase38-stage`): PRIMARY in-distribution split
+  (per-day first-80% train / last-20% val, joined ≈10,589/2,649 windows),
+  5 epochs, chunk 64, AdamW lr 1e-3 with **no weight decay and no LR
+  schedule**, loss weights dynamics 0.5 / infiltration 3.0 / stage 3.0,
+  focal alpha 0.75, seed 42, **checkpoint selected by validation loss**
+  (best epoch 1, val_loss 3.915), then frozen-backbone Phase 38
+  stage-head fine-tune (infiltration outputs provably unchanged).
+  Pre-Phase-63 archive:
+  `python-ml/weights/world_model_v1_pretune_baseline_loss.pt`.
+- **Phase 63 attempt (NOT promoted):** same recipe, 6 epochs, selection by
+  validation F1 (`python-ml/training/run_phase63_retrain.py`,
+  `results/phase63_retrain.json`). Dropout/weight-decay/cosine and
+  aggressive rebalancing were trialed first and rejected by evidence
+  (each accelerated head collapse).
+
+## 6. Benchmark Results (From `results/benchmark_table.csv`, Threshold 0.5)
+
+| Model | Split | F1 | Precision | Recall | FPR | AUC-ROC | Stage macro-F1 | Early-warning lead time |
+|---|---|---|---|---|---|---|---|---|
+| Logistic Regression (frozen `baseline-v1`) | In-distribution (identical 10,589/2,649 windows) | 0.7097 | 0.6535 | 0.7765 | 0.2578 | — | 0.4983 | N/A (non-temporal) |
+| World Model (canonical) | In-distribution (same windows) | 0.3454 | 0.5027 | 0.2738 | 0.1694 | 0.5813 | 0.0335 pre-finetune; 0.244 post-Phase-38 | 120s both eligible attacks (Phase 33 partial) |
+| World Model (Phase 63 attempt, NOT promoted) | In-distribution (same windows) | 0.3132 | 0.4989 | 0.2283 | 0.1424 | 0.5843 | 0.2397 | — |
+| World Model (canonical) | Cross-day whole-day-03-02 stress test | 0.1489 | 0.1334 | 0.1684 | 0.1977 | 0.4714 | 0.0386 | — |
+| World Model (CTU-13 zero-shot) | Pending Phases 58–60 — no run yet | — | — | — | — | — | — | — |
+
+Plainly: **the gap did not close — the world model trails the baseline
+in-distribution (0.3454 vs. 0.7097), and the Phase 63 attempt regressed to
+0.3132 and was not promoted.** One-line rationale: validation loss
+anti-correlates with F1 here because the dynamics-MSE term (~95% of the
+joint loss at init) dominates selection, and the infiltration head's mass
+collapses below 0.5 with further training while ranking (AUC ≈ 0.55–0.60)
+barely moves. The cross-day row is a different, harder methodology — do
+not compare it directly against in-distribution rows.
+
+## 7. Explainability (Verified)
+
+- **Attention:** `python-ml/explain/attention_viz.py` over a real 64-window
+  pre-attack validation context — live shape [2, 1, 4, 64, 64], zero
+  future mass, row-sum error 1.2e-07 →
+  `results/phase39_attention_heatmap.png` /
+  `phase39_attention_summary.json` /
+  `results/phase39_attention_weights.pt` (tracked).
+- **SHAP surrogate:** ExtraTrees (100 trees, depth 18),
+  `python-ml/weights/shap_surrogate_v1.joblib` (~28MB, tracked), 1,289
+  features: **R2 0.9777**, Pearson 0.9894, MAE 0.00934, TreeSHAP
+  additivity error ~1.3e-15 (seeded teacher-output holdout 10,555/2,639 —
+  fidelity only, not detection performance).
+- **Schema** (every `/predict`): `{probability, predicted_stage,
+  top_5_features[{feature, value, shap_value}], attention_summary}` plus
+  `rollout`, `surrogate`, `latency_ms`,
+  `artifact_version: kairos.prediction.v1`.
+- **Latency (end-to-end, not isolated):** SHAP+JSON median 108.2ms / p95
+  110.3ms / max 111.3ms (30 runs, <2s pass); live HTTP `POST /predict`
+  (8-window) 149.9ms; live `/forecast/upload` 0.28–0.43s. Missing/corrupt
+  surrogate → clean HTTP 503, never 500.
+
+## 8. MITRE ATT&CK Stage Mapping (Explicit Limitation)
+
+Phase 37 decision (`retain_six_class_external_schema_no_merge` — no merge,
+no new labels): six-class schema retained end to end, but only three
+stages have real training support — **INITIAL_ACCESS, COMMAND_AND_CONTROL,
+IMPACT** (live per-class F1 ≈ 0.56 / 0.42 / 0.48). **RECONNAISSANCE,
+LATERAL_MOVEMENT, and EXFILTRATION have zero examples in the selected
+contracts (F1 0.0, zero support) — no validated performance may be claimed
+for them.**
+
+## 9. Offline Mode and Gemini Narrative Mode (Separate Modes)
+
+- **Offline-local (default):** deterministic template, no network call;
+  active unless both Gemini conditions hold; automatic
+  `offline-local-fallback` on any Gemini failure. Verified via the
+  network-disabled full-stack test (zero errors, zero external calls).
+- **Gemini-enhanced (opt-in):** requires `ONLINE_MODE=true` **and** API key
+  (`GEMINI_API_KEY`, `GOOGLE_API_KEY` legacy fallback; optional
+  `GEMINI_MODEL`, default `gemini-flash-latest`). Key present but
+  `ONLINE_MODE` unset/false → stays offline. No key → Gemini never
+  invoked (unit-tested). Output capped, plain-text-only, restricted to
+  facts in the prediction JSON.
+
+## 10. Known Limitations (Consolidated)
+
+- Baseline gap open: 0.3454 vs. 0.7097 (Phase 63 attempt 0.3132, kept
+  canonical with rationale above).
+- Reconnaissance / Lateral Movement / Exfiltration unsupported — zero
+  training examples.
+- CTU-13 zero-shot (Phases 58–60) not run; no generalization numbers exist.
+- Phase 33 PARTIAL: 120s threshold crossing on both eligible attacks, no
+  material near-onset probability rise — early alerting, not calibrated
+  rising-risk trajectory.
+- Cross-day F1 0.1489 (unseen-C2 whole-day stress test), tracked
+  separately by design.
+- All F1 values use the fixed 0.5 threshold retained for comparability
+  (lower thresholds raise F1 at steep FPR cost).
+
+## 11. Roadmap — Live-Capture and Active-Probe Extension (Phases 66–78)
+
+> The phases below extend KAIROS from static file analysis (PCAP/CSV
+> upload) to live network capture and, optionally, authorized active
+> probing. This is a distinct, higher-risk capability tier. Live passive
+> capture and active probing are NOT part of the verified, complete static
+> pipeline described above — they are planned/in-progress work, gated
+> behind explicit authorization, and must only be used on networks and
+> hosts you own or are explicitly authorized to test. Active probing in
+> particular carries legal responsibility resting entirely with the
+> operator.
+
+| Phase | Deliverable | Exit Criterion |
+|---|---|---|
+| 66 | Live-capture architecture and threat/safety model | API contracts, scope policy, retention policy, interface lifecycle documented |
+| 67 | C++ interface enumeration and passive capture | Lists interfaces; captures a bounded local session with BPF filter and packet/drop counters |
+| 68 | C++ live feature-window emitter | Emits the existing packet and flow feature schema every 10 seconds from live packets |
+| 69 | Java JNI live-session bridge | Java starts/stops C++ capture and receives validated window events |
+| 70 | Java target resolver and consent gate | URL/IP validation, DNS pinning, allowlist/lab policy, audit session record |
+| 71 | Java sequence adapter | Live windows convert into kairos.sequence.v1 and pass schema validation |
+| 72 | Python live inference and drift guard | Same model accepts live sequence windows and emits score/stage/XAI plus quality state |
+| 73 | React live dashboard | Start/stop controls, live timeline, counters, stage/XAI panel |
+| 74 | Streaming transport | WebSocket/SSE live updates without full-page polling |
+| 75 | Authorized probe-and-observe mode | Conservative, explicitly gated discovery with an auditable safe profile |
+| 76 | Offline and safety regression tests | Passive mode works with network disabled after traffic generation; active mode requires explicit authorization flag |
+| 77 | Performance and packet-loss validation | Measured throughput, drop-rate behaviour, bounded memory, capture backpressure tested |
+| 78 | Demo scenario and docs | Local Docker/lab attack simulation, evidence screenshots, scope/limitations documentation |
+
+Status: not yet started — none of Phases 66–78 has begun. Do not describe
+any capability from this table as working until its own phase-specific
+exit criterion has been met and independently verified.
+
+## 12. Reproducibility (Verified Commands)
+
+```bash
+# Reload canonical checkpoint + rollout load test (LOAD TEST PASS)
+python-ml/venv/bin/python python-ml/training/load_test_checkpoint.py
+# Identical-split baseline (rewrites indist artifacts; restore with
+# `git checkout -- results python-ml/weights` if unwanted)
+python-ml/venv/bin/python python-ml/training/run_phase32_baseline_indist.py
+# Phase 63 trajectory (promotes nothing; restores canonical automatically)
+python-ml/venv/bin/python python-ml/training/run_phase63_retrain.py
+# Regenerate attention + surrogate artifacts
+python-ml/venv/bin/python python-ml/explain/attention_viz.py
+python-ml/venv/bin/python python-ml/training/run_phase40_43_explainability.py
+# Test suites + UI build (Python 12/12; Java 20/0 failures; React compiles)
+cd python-ml && ./venv/bin/python -m unittest tests.test_app \
+  tests.test_explainability tests.test_phase32_metrics
+cd ../java-engine && ./mvnw -o test
+cd ../react-ui && npm run build
+# Offline demo: see Quick Start section above.
+```
+
+`results/benchmark_table.csv` rows trace to
+`results/baseline_metrics_indist.json`,
+`results/phase32_completed.json` + live evaluation,
+`results/phase63_retrain.json`, and the cross-day live run. Weights follow
+the size-gated policy (`.gitignore` / `python-ml/weights/README.md`).
+
+## 13. Safety and Legal Notice
+
+This project is a research/hackathon prototype. The verified static
+pipeline analyzes files you provide only; it performs no capture and no
+probing. Any future live-capture or active-probe capability must only be
+used on authorized networks; the project maintainers are not responsible
+for misuse.
+
+## 14. Contribution / License / Acknowledgments
+
+No license file is currently committed. Contributions follow existing
+per-layer conventions (typed, tested, offline-first) and must keep
+`git diff baseline-v1 -- python-ml/baseline/` empty. Data: CSE-CIC-IDS2018
+(Registry of Open Data on AWS); Stratosphere Laboratory CTU-13 Scenario 6
+capture (CC-BY). `results/` and `docs/phase-status.md` are authoritative —
+this README summarizes them.
