@@ -369,6 +369,83 @@ private Python endpoint at `POST /predict`.
 
 ## Roadmap — Live-Capture and Active-Probe Extension (Phases 66–78)
 
+Full project history first (Phases 0–65, summarized from
+`docs/implementationplan.md` with actual completion status from the
+audits), then the planned live-capture tier (66–78).
+
+### Static pipeline history (Phases 0–65)
+
+| Phase | Deliverable | Status |
+|---|---|---|
+| 0 | Monorepo skeleton + README (4-layer structure, manifests, .gitignore, arch diagram) | Complete |
+| 1 | Environment setup across all layers (C++17, JDK 17+, Python venv + torch/geometric, Node/React, `.env.example`) | Complete (verified: JDK 21, Python 3.13, Node 24.21.0) |
+| 2 | CIC-IDS2018 acquisition (02-14, 02-15, 02-28, 03-02; 13,202 windows) | Complete |
+| 3 | CTU-13 Scenario 6 / DonBot truncated capture (dev-only) | Complete (excluded from zero-shot) |
+| 4 | C++ packet-level feature extractor core | Complete (17.4M-packet scan, no errors) |
+| 5 | C++ port-scan signature detector (sequential vs. randomized) | Complete |
+| 6 | C++ unit tests + `libkairos_native.so` shared library | Complete |
+| 7 | Java-to-C++ bridge (`CppBridge.java`, JNI round-trip) | Complete |
+| 8 | Java flow CSV ingestion (header normalization, NaN/Inf sanitize, stage labels) | Complete |
+| 9 | Java 10s windowing + host aggregation | Complete (10s won 5s/10s/30s) |
+| 10 | Java graph construction (host-flow snapshots) | Complete |
+| 11 | Java↔Python serialization contract (`kairos.sequence.v1`, JSON) | Complete |
+| 12 | Python baseline feature flattening | Complete |
+| 13 | Python time-based split + `StandardScaler` | Complete |
+| 14 | Python multinomial logistic regression (6-class stage) | Complete |
+| 15 | Python binary logistic regression (infiltration) | Complete |
+| 16 | Baseline evaluation + freeze (`baseline-v1` tag; code must stay untouched) | Complete |
+| 17 | GraphSAGE GNN encoder skeleton | Complete (no GAT in code) |
+| 18 | Mean/attention pooling to fixed-size embedding | Complete |
+| 19 | Encoder overfit sanity test (~50 windows, near-zero loss) | Complete |
+| 20 | Variable-size graph batch pipeline | Complete |
+| 21 | Temporal dynamics skeleton (Transformer, 2 layers, 4 heads) | Complete (no LSTM in code) |
+| 22 | Teacher-forced next-state objective (MSE) | Complete |
+| 23 | Dynamics training loop (checkpointing, grad clipping, day split) | Complete |
+| 24 | Loss-curve verification | Complete (val diverges after epoch 1) |
+| 25 | K-step autoregressive rollout | Complete (K=3 selected of 3/5/10) |
+| 26 | Infiltration probability head (sigmoid) | Complete |
+| 27 | MITRE stage head (6-class softmax) | Complete |
+| 28 | Joint loss + focal class-imbalance handling (0.5/3/3, α=0.75) | Complete |
+| 29 | Full end-to-end training run (in-distribution split) | Complete |
+| 30 | Checkpoint + config logging (`world_model_v1.pt`) | Complete |
+| 31 | Window-size ablation (5s/10s/30s) | Complete (10s wins; coverage-gap diagnosis) |
+| 32 | K + GNN-vs-flat ablation | Complete (GNN F1 0.3454; flat 0.0) |
+| 33 | Rollout proof-of-concept (120s early alert) | Partial (threshold crossed; no probability rise) |
+| 34 | MITRE heuristic cross-check | Complete (weak agreement) |
+| 35 | Per-class error analysis | Complete |
+| 36 | Label audit | Complete (no ambiguous labels) |
+| 37 | Stage-set decision (`retain_six_class_external_schema_no_merge`) | Complete |
+| 38 | Stage-head-only fine-tune (frozen backbone) | Complete (observed-macro 0.0667→0.3302) |
+| 39 | Causal attention extraction + heatmap | Complete ([2,1,4,64,64], causal) |
+| 40 | SHAP surrogate (ExtraTrees, R2 0.9777) | Complete |
+| 41 | TreeSHAP integration (additivity err ~1e-15) | Complete |
+| 42 | Explanation JSON schema (`kairos.prediction.v1`) | Complete |
+| 43 | Explainability latency check (<2s) | Complete (108ms median) |
+| 44 | Flask `POST /predict` endpoint (clean 503 on missing surrogate) | Complete |
+| 45 | Java `PythonMlClient` (real HTTP, typed parsing) | Complete |
+| 46 | `ForecastController` (`/forecast`, `/forecast/upload`) | Complete |
+| 47 | Local fallback narrative (offline default) | Complete |
+| 48 | Gemini narrative service (key-gated) | Complete |
+| 49 | Narrative mode toggle (`ONLINE_MODE` + key, local fallback) | Complete |
+| 50 | Backend end-to-end integration test (MockMvc) | Complete |
+| 51 | React app skeleton + upload wiring | Complete |
+| 52 | Probability timeline chart | Complete |
+| 53 | Flagged flows table (SHAP evidence) | Complete |
+| 54 | Stage annotations overlay | Complete |
+| 55 | Narrative panel (mode badge) | Complete |
+| 56 | Offline compliance verification (network disabled, 0 errors) | Complete |
+| 57 | Sample-attack quick-load button (<30s cold start) | Complete |
+| 58 | CTU-13 pipeline adaptation | Not started |
+| 59 | CTU-13 zero-shot inference (frozen model, non-Scenario-6 data) | Not started |
+| 60 | CTU-13 metrics + generalization-gap analysis | Not started |
+| 61 | Benchmark table finalization | Partial (`benchmark_table.csv` exists; CTU-13 row pending) |
+| 62 | Documentation completion | Partial (this README rewritten; `docs/architecture.md` pending) |
+| 63 | Retraining attempt, Option A (redefined from demo video; F1-selection probe, canonical kept) | Complete — negative result, tag `phase63-complete` |
+| 64 | Pitch deck | Not started |
+| 65 | Clean-clone end-to-end reproducibility check | Partial (verified in-place, no clean-clone) |
+
+### Live-capture and active-probe extension (Phases 66–78)
+
 > The phases below extend KAIROS from static file analysis (PCAP/CSV
 > upload) to live network capture and, optionally, authorized active
 > probing. This is a distinct, higher-risk capability tier. Live passive
@@ -398,6 +475,10 @@ private Python endpoint at `POST /predict`.
 Status: not yet started — none of Phases 66–78 has begun. Do not describe
 any capability from this table as working until its own phase-specific exit
 criterion has been met and independently verified.
+
+> Note: Phases 64–65 in the table above (pitch deck, clean-clone check) are
+> still open from the original 65-phase plan; Phases 66–78 below are a
+> separate live-capture tier and do not depend on them.
 
 ## Reproducibility
 
