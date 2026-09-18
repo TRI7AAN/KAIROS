@@ -20,6 +20,10 @@ from phase32_common import CLASS_NAMES, DAY_NAMES, build_splits, make_model
 
 CHECKPOINT = REPO_ROOT / "python-ml" / "weights" / "world_model_v1.pt"
 ARCHIVE = REPO_ROOT / "python-ml" / "weights" / "world_model_phase32.pt"
+# The pre-finetune archive is best-effort provenance: if the Phase 38 script
+# has already run once (or the checkpoint on disk is already the finetuned
+# one), there is nothing to archive and the run must not crash — the finetuned
+# checkpoint already carries artifact_version kairos.world-model.v1.phase38-stage.
 EXPECTED_BY_DAY = {
     "day14.json": {"INITIAL_ACCESS"},
     "day15.json": {"IMPACT"},
@@ -181,6 +185,12 @@ def main() -> int:
 
     model = make_model(len(node), len(edge), encoder="gnn")
     payload = torch.load(CHECKPOINT, map_location="cpu", weights_only=False)
+    if payload.get("artifact_version") == "kairos.world-model.v1.phase38-stage":
+        print("checkpoint is already the Phase 38 finetuned artifact; "
+              "re-running the fine-tune is idempotent and will refresh the "
+              "same stage-head optimum.")
+    elif not ARCHIVE.exists():
+        shutil.copy2(CHECKPOINT, ARCHIVE)
     model.load_state_dict(payload["model_state_dict"])
     before_infiltration = infiltration_probabilities(model, in_val)
     train_states, train_targets = extract_examples(model, in_train)
@@ -247,7 +257,10 @@ def main() -> int:
             f"{infiltration_max_delta}"
         )
 
-    shutil.copy2(CHECKPOINT, ARCHIVE)
+    if (payload.get("artifact_version")
+            != "kairos.world-model.v1.phase38-stage"
+            and not ARCHIVE.exists()):
+        shutil.copy2(CHECKPOINT, ARCHIVE)
     updated_payload = dict(payload)
     updated_payload["artifact_version"] = "kairos.world-model.v1.phase38-stage"
     updated_payload["model_state_dict"] = model.state_dict()

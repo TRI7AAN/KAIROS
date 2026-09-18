@@ -2,87 +2,87 @@
   "artifact_version": "kairos.phase41.v1",
   "method": "TreeSHAP",
   "explained_validation_rows": 32,
-  "max_additivity_error": 2.4424906541753444e-15,
+  "max_additivity_error": 1.27675647831893e-15,
   "global_top_features": [
     {
       "feature": "forecast_history.last_probability",
-      "mean_absolute_shap": 0.03634767321284458
-    },
-    {
-      "feature": "forecast_history.std_probability",
-      "mean_absolute_shap": 0.015107666766649054
+      "mean_absolute_shap": 0.0318176687933125
     },
     {
       "feature": "forecast_context.position_fraction",
-      "mean_absolute_shap": 0.014519642083409603
+      "mean_absolute_shap": 0.014477934032407857
+    },
+    {
+      "feature": "forecast_history.std_probability",
+      "mean_absolute_shap": 0.012439766469672231
     },
     {
       "feature": "forecast_history.mean_probability",
-      "mean_absolute_shap": 0.009432654042771764
+      "mean_absolute_shap": 0.00953678923638563
     },
     {
       "feature": "forecast_history.max_probability",
-      "mean_absolute_shap": 0.00016734639918291304
+      "mean_absolute_shap": 0.00025117325828697323
     },
     {
-      "feature": "edge.fwd_seg_size_min.max.sum",
-      "mean_absolute_shap": 9.39641585621656e-05
+      "feature": "edge.fwd_seg_size_min.max.max",
+      "mean_absolute_shap": 0.00012151689083390338
     },
     {
       "feature": "edge.fwd_seg_size_min.max.mean",
-      "mean_absolute_shap": 8.80526065268347e-05
+      "mean_absolute_shap": 8.219848924818899e-05
     },
     {
-      "feature": "edge.init_bwd_win_byts.sum.sum",
-      "mean_absolute_shap": 7.241655527495841e-05
+      "feature": "edge.fwd_seg_size_min.max.sum",
+      "mean_absolute_shap": 8.096512705177169e-05
     },
     {
-      "feature": "edge.bwd_pkt_len_mean.max.mean",
-      "mean_absolute_shap": 7.236447010981893e-05
+      "feature": "edge.psh_flag_cnt.std.sum",
+      "mean_absolute_shap": 7.684961550499465e-05
     },
     {
-      "feature": "edge.rst_flag_cnt.sum.max",
-      "mean_absolute_shap": 6.605857453726788e-05
+      "feature": "edge.ece_flag_cnt.std.max",
+      "mean_absolute_shap": 6.970554019245422e-05
     },
     {
-      "feature": "edge.idle_max.std.max",
-      "mean_absolute_shap": 5.929404964249779e-05
+      "feature": "edge.bwd_iat_mean.mean.mean",
+      "mean_absolute_shap": 6.830943698550713e-05
     },
     {
-      "feature": "edge.flow_iat_max.std.max",
-      "mean_absolute_shap": 5.923162090169535e-05
+      "feature": "edge.init_fwd_win_byts.max.sum",
+      "mean_absolute_shap": 6.759191668160471e-05
     },
     {
-      "feature": "edge.init_fwd_win_byts.mean.sum",
-      "mean_absolute_shap": 5.830067725049115e-05
+      "feature": "edge.psh_flag_cnt.max.max",
+      "mean_absolute_shap": 5.948005341280056e-05
     },
     {
-      "feature": "edge.idle_mean.std.mean",
-      "mean_absolute_shap": 5.786418617812294e-05
+      "feature": "edge.init_fwd_win_byts.max.mean",
+      "mean_absolute_shap": 5.78242361091528e-05
     },
     {
-      "feature": "edge.idle_min.std.sum",
-      "mean_absolute_shap": 5.5854107129037084e-05
+      "feature": "edge.ece_flag_cnt.sum.max",
+      "mean_absolute_shap": 5.3820948414646476e-05
     },
     {
-      "feature": "edge.rst_flag_cnt.std.max",
-      "mean_absolute_shap": 5.5306450188242684e-05
+      "feature": "edge.ece_flag_cnt.std.sum",
+      "mean_absolute_shap": 5.3760084355517e-05
     },
     {
-      "feature": "edge.fwd_iat_mean.std.max",
-      "mean_absolute_shap": 5.518430027940267e-05
+      "feature": "edge.fwd_iat_std.std.mean",
+      "mean_absolute_shap": 5.293206888685043e-05
     },
     {
-      "feature": "edge.fwd_iat_max.std.mean",
-      "mean_absolute_shap": 5.485208093330089e-05
+      "feature": "edge.init_fwd_win_byts.mean.mean",
+      "mean_absolute_shap": 5.2432003609105015e-05
     },
     {
-      "feature": "edge.bwd_iat_std.max.mean",
-      "mean_absolute_shap": 5.4443005248733204e-05
+      "feature": "edge.bwd_iat_mean.sum.sum",
+      "mean_absolute_shap": 5.2317551871590893e-05
     },
     {
-      "feature": "edge.rst_flag_cnt.mean.sum",
-      "mean_absolute_shap": 5.415039670647022e-05
+      "feature": "edge.init_fwd_win_byts.max.max",
+      "mean_absolute_shap": 5.213973569233839e-05
     }
   ],
   "plausibility_status": "pass",

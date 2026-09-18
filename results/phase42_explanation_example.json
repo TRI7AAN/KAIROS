@@ -1,31 +1,31 @@
 {
-  "probability": 0.48704931139945984,
+  "probability": 0.5843673348426819,
   "predicted_stage": "IMPACT",
   "top_5_features": [
     {
       "feature": "forecast_history.last_probability",
-      "value": 0.48358210921287537,
-      "shap_value": 0.02164532630877552
-    },
-    {
-      "feature": "forecast_history.mean_probability",
-      "value": 0.5942070484161377,
-      "shap_value": 0.02080996209327615
+      "value": 0.593625009059906,
+      "shap_value": 0.06608993943509864
     },
     {
       "feature": "forecast_history.std_probability",
-      "value": 0.04125352203845978,
-      "shap_value": 0.012658885199709534
+      "value": 0.014979111030697823,
+      "shap_value": 0.03978105394899329
+    },
+    {
+      "feature": "forecast_history.mean_probability",
+      "value": 0.6060088872909546,
+      "shap_value": 0.025868683176052773
     },
     {
       "feature": "forecast_context.position_fraction",
-      "value": 0.5869565010070801,
-      "shap_value": -0.00688659090172283
+      "value": 0.12720157206058502,
+      "shap_value": 0.02418986310899302
     },
     {
-      "feature": "edge.fwd_pkts_s.sum.sum",
-      "value": 8591825.0,
-      "shap_value": -0.00032509819187968283
+      "feature": "forecast_history.max_probability",
+      "value": 0.6317266225814819,
+      "shap_value": -0.0007142893603501819
     }
   ],
   "attention_summary": {
@@ -65,8 +65,8 @@
     "causal_future_attention_mass": 0.0
   },
   "surrogate": {
-    "prediction": 0.4893010189811903,
-    "base_value": 0.44085998820595873,
-    "fidelity_r2": 0.9745513883087267
+    "prediction": 0.5941297134301796,
+    "base_value": 0.43821304327941113,
+    "fidelity_r2": 0.9777148326649993
   }
 }

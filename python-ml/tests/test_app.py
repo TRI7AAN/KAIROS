@@ -46,6 +46,18 @@ class PredictionApiTest(unittest.TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn("error", response.get_json())
 
+    def test_missing_surrogate_returns_503_not_500(self):
+        client = create_app(
+            surrogate_path="/tmp/kairos-test-missing-surrogate.joblib",
+        ).test_client()
+        contract = {"contractVersion": "kairos.sequence.v1"}
+        response = client.post("/predict", json={"contract": contract})
+        self.assertEqual(response.status_code, 503)
+        self.assertIn(
+            "explainability service unavailable",
+            response.get_json()["error"],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

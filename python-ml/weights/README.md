@@ -1,7 +1,21 @@
 # Model weights
 
-`world_model_v1.pt` (603KB) and the `baseline_*.joblib` scaler/models are
-committed directly (choice (a): final weights are well under ~100MB).
+`world_model_v1.pt` (603KB), the `baseline_*.joblib` scaler/models, and
+`shap_surrogate_v1.joblib` (~28MB ExtraTrees SHAP surrogate, R2 ~0.978) are
+committed directly (final weights are well under ~100MB).
+`world_model_phase32.pt` is intentionally NOT committed: it is only the
+pre-Phase-38-finetune backup of `world_model_v1.pt`, reproducible at any time
+by re-running `python-ml/training/run_phase36_38_stage_repair.py` against a
+pre-finetune checkpoint (the finetuned checkpoint carries
+`artifact_version kairos.world-model.v1.phase38-stage` plus the full
+`phase38` training record, and `results/phase38_stage_finetune.json` holds
+the before/after metrics). Likewise the Phase 32 loss-grid variant
+checkpoints (`phase32_*_gnn.pt`, `phase32_flat_winning_loss.pt`) are NOT
+committed: they are intermediate ablation artifacts, reproducible via
+`python-ml/training/run_phase32_complete.py`, whose committed
+`results/phase32_completed.json` records every variant's full training log,
+evaluation, and the `winning_checkpoint_source` that was promoted to
+`world_model_v1.pt`.
 
 Reproduce from scratch:
 

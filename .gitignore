@@ -57,6 +57,8 @@ python-ml/weights/*
 !python-ml/weights/world_model_5s.pt
 !python-ml/weights/world_model_30s.pt
 !python-ml/weights/baseline_*.joblib
+!python-ml/weights/shap_surrogate_v1.joblib
+!python-ml/weights/world_model_phase32.pt
 results/*
 !results/.gitkeep
 !results/*.json
@@ -65,3 +67,4 @@ results/*
 !results/*.png
 !results/*.csv
 !results/*.md
+!results/phase39_attention_weights.pt

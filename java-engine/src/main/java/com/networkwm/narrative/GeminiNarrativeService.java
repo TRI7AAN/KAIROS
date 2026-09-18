@@ -48,7 +48,7 @@ public final class GeminiNarrativeService {
         Objects.requireNonNull(prediction, "prediction");
         if (!isConfigured()) {
             throw new IllegalStateException(
-                    "Gemini narrative requested without GOOGLE_API_KEY");
+                    "Gemini narrative requested without GEMINI_API_KEY");
         }
         String prompt;
         try {
@@ -93,11 +93,11 @@ public final class GeminiNarrativeService {
     }
 
     private static String configuredApiKey() {
-        String primary = System.getenv("GOOGLE_API_KEY");
+        String primary = System.getenv("GEMINI_API_KEY");
         if (primary != null && !primary.isBlank()) {
             return primary;
         }
-        String legacy = System.getenv("GEMINI_API_KEY");
+        String legacy = System.getenv("GOOGLE_API_KEY");
         return legacy == null ? "" : legacy;
     }
 

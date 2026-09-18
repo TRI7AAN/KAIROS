@@ -15,13 +15,24 @@ data:
   #   java -cp <classes> com.networkwm.graph.CicDatasetExporter <OUT.json> <IN.csv>
   # (CicGraphDatasetService, 10-second windows, vector mode for endpoint-free CSVs).
   window_size_seconds: 10
+  # PRIMARY split (Phase 32 onward): in-distribution per-day final-20%-time
+  # holdout. Per day, train on the first 80% of time-ordered windows, hold out
+  # the LAST 20% of each day's time range for validation (joined across all 4
+  # days: ~10,589 train / ~2,649 val windows). Every stage present in training
+  # (IA, Impact, C2) also appears in validation.
+  # SECONDARY split (generalization stress test, tracked separately): train on
+  # day14+day15+day28, validate on whole day0302 (unseen C2 dynamics).
+  # The legacy whole-day-only contract lists below are retained for reference;
+  # the canonical in-distribution + cross-day construction lives in
+  # python-ml/training/phase32_common.py:build_splits().
   train_contracts:
     - data/processed/graph_contracts/day14.json
     - data/processed/graph_contracts/day15.json
     - data/processed/graph_contracts/day28.json
   validation_contracts:
     - data/processed/graph_contracts/day0302.json
-  # Day-based split: train on 2018-02-14 + 2018-02-15 + 2018-02-28 (10,059 windows),
+  # Legacy day-based counts (whole-day split, now the SECONDARY stress test):
+  # train on 2018-02-14 + 2018-02-15 + 2018-02-28 (10,059 windows),
   # validate on the whole held-out day 2018-03-02 (3,143 windows). Never shuffled.
   train_windows: 10059
   validation_windows: 3143

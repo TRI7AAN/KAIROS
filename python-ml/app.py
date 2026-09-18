@@ -36,6 +36,10 @@ ATTENTION_CONTEXT_WINDOWS = 64
 MAX_ROLLOUT_STEPS = 10
 
 
+class SurrogateUnavailableError(RuntimeError):
+    """The SHAP surrogate artifact is missing or unreadable."""
+
+
 class PredictionService:
     """Load immutable artifacts once and serve deterministic CPU inference."""
 
@@ -45,7 +49,14 @@ class PredictionService:
         surrogate_path: str | Path = DEFAULT_SURROGATE,
     ) -> None:
         self.checkpoint_path = Path(checkpoint_path)
-        self.surrogate, self.surrogate_feature_names = load_surrogate(surrogate_path)
+        try:
+            self.surrogate, self.surrogate_feature_names = load_surrogate(
+                surrogate_path)
+        except (OSError, ValueError) as error:
+            raise SurrogateUnavailableError(
+                "explainability service unavailable: "
+                f"cannot load SHAP surrogate from {surrogate_path}"
+            ) from error
         self._checkpoint = torch.load(
             self.checkpoint_path, map_location="cpu", weights_only=False)
         self._models: dict[tuple[int, int], torch.nn.Module] = {}
@@ -169,15 +180,22 @@ class PredictionService:
         return response
 
 
-def create_app(prediction_service: PredictionService | None = None) -> Flask:
+def create_app(prediction_service: PredictionService | None = None,
+               surrogate_path: str | Path | None = None) -> Flask:
     app = Flask(__name__)
     service_holder: dict[str, PredictionService | None] = {
         "service": prediction_service}
 
     def service() -> PredictionService:
         if service_holder["service"] is None:
-            service_holder["service"] = PredictionService()
+            service_holder["service"] = PredictionService(
+                surrogate_path=surrogate_path
+                if surrogate_path is not None else DEFAULT_SURROGATE)
         return service_holder["service"]
+
+    @app.errorhandler(SurrogateUnavailableError)
+    def surrogate_unavailable(error):
+        return jsonify({"error": str(error)}), 503
 
     @app.get("/health")
     def health():
@@ -196,6 +214,8 @@ def create_app(prediction_service: PredictionService | None = None) -> Flask:
         rollout_steps = payload.get("rolloutSteps", 3)
         try:
             result = service().predict(contract, rollout_steps)
+        except SurrogateUnavailableError as error:
+            return jsonify({"error": str(error)}), 503
         except (GraphContractError, ValueError, TypeError) as error:
             return jsonify({"error": str(error)}), 400
         return jsonify(result)

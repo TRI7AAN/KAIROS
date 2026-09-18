@@ -22,7 +22,7 @@ public final class NarrativeModeService {
         this(local, gemini, NarrativeModeService::configuredOnlineMode);
     }
 
-    NarrativeModeService(
+    public NarrativeModeService(
             LocalNarrativeService local,
             GeminiNarrativeService gemini,
             BooleanSupplier onlineRequested) {

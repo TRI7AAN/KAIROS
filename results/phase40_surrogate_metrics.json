@@ -9,22 +9,22 @@
     "random_seed": 42
   },
   "validation_scope": "Seeded 20% holdout over teacher outputs from all in-distribution CIC days. This measures surrogate-to-teacher fidelity only; it is not an attack-detection or future-generalization metric.",
-  "training_rows": 10584,
-  "validation_rows": 2646,
+  "training_rows": 10555,
+  "validation_rows": 2639,
   "feature_count": 1289,
-  "training_seconds": 8.124896032999914,
+  "training_seconds": 8.40916532600022,
   "fidelity": {
-    "r2": 0.9745513883087267,
-    "mae": 0.009093389538555161,
-    "rmse": 0.014709590809253591,
-    "pearson_correlation": 0.9875493422490202,
+    "r2": 0.9777148326649993,
+    "mae": 0.009340423584263647,
+    "rmse": 0.01353219042987745,
+    "pearson_correlation": 0.9893764181314516,
     "world_probability_min_max": [
-      0.003170566400513053,
-      0.6524907946586609
+      0.004963153973221779,
+      0.6424438953399658
     ],
     "surrogate_probability_min_max": [
-      0.3001933806037192,
-      0.6363786156562825
+      0.2996283581628536,
+      0.6246741574410768
     ]
   },
   "artifact": "python-ml/weights/shap_surrogate_v1.joblib"

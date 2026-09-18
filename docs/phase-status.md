@@ -26,6 +26,41 @@
   focal joint loss.
 - **29-30:** real four-day capped CIC export and end-to-end training with
   load-tested checkpoint, exact config, and loss history.
+- **31:** window-size ablation finalized, winner 10s; stage macro-F1 diagnostic
+  resolved as a coverage gap (val C2 disjoint from train IA/Impact;
+  Recon/Lateral/Exfil nowhere), deferred to Phase 34.
+- **32:** in-distribution per-day final-20%-time split adopted as the PRIMARY
+  split (joined ~10,589 train / ~2,649 val across all 4 days); whole-day
+  day0302 retained as a SECONDARY generalization stress test. Seeded
+  loss/alpha, encoder (GNN winner), and rollout-K (K=3) ablations; frozen
+  baseline re-evaluated on the identical in-dist split for a valid
+  head-to-head (`results/baseline_metrics_indist.json`).
+- **33:** rollout proof — K=3 gives 120s early alerts on both eligible
+  validation attacks, but the probability-rise criterion did not pass, so
+  Phase 33 is marked partial, not overstated.
+- **34-38:** MITRE mapping cross-check (weak agreement; only IA/C2/Impact
+  occur in the selected contracts), per-class error analysis, label audit
+  (no ambiguous labels), stage-set decision
+  (`retain_six_class_external_schema_no_merge` — no merge, no new labels),
+  and frozen-backbone stage-head fine-tune (observed-macro 0.0667 → 0.3302),
+  stamped into `world_model_v1.pt` (`artifact_version
+  kairos.world-model.v1.phase38-stage`).
+- **39-43:** causal Transformer attention extraction (mask + normalization
+  checks pass), TreeSHAP surrogate over causal forecast-history features
+  (fidelity R2 ~0.978, additivity error ~1e-15), Phase 42 explanation schema,
+  and sub-2s latency (median ~108ms, p95 ~110ms).
+- **44-50:** Flask `POST /predict` (graph load, GNN/Transformer inference,
+  K-step rollout, attention, SHAP), typed Java `PythonMlClient`, public
+  `POST /forecast` + `/forecast/upload` orchestration, deterministic
+  offline-local narrative by default, optional Gemini mode behind
+  `ONLINE_MODE` + API-key gate, and a MockMvc upload-to-response
+  integration test (Python client mocked).
+- **51-57:** React dashboard (upload wiring, probability timeline, flagged
+  flows, stage annotations, narrative panel with mode badge, sample-attack
+  quick-load) building cleanly via `npm run build`.
+- **58-60 (CTU-13 zero-shot):** NOT STARTED. Scenario 6 (DonBot) remains
+  packet-extractor development data only, explicitly excluded from zero-shot
+  scoring; the generalization test MUST use a different CTU-13 scenario.
 
 ## Real-data evidence
 
@@ -40,22 +75,40 @@
 The JNI round-trip test passes without skips (surefire supplies the native
 library). Native extractor tests, all Java unit tests, and all Python tests pass.
 
-## Current measured results
+## Current measured results (live-verified, in-distribution PRIMARY split)
 
-The converged logistic baseline (frozen, `results/baseline_metrics.json`) uses
-the strict final 20% of the joined 13,202-window sequence as a future holdout
-(10,561 train / 2,641 test): binary F1 **0.3096**, precision **0.5730**,
-recall **0.2121**, and false positive rate **0.0352**. Its stage macro-F1 is
-**0.0** because all 481 malicious holdout windows are Command-and-Control, a
-class not present in the prior training period. This is a meaningful
-generalization failure, not a parsing bug.
+PRIMARY — in-distribution per-day final-20%-time holdout (joined across all
+4 days; every val stage seen in training):
 
-The end-to-end world-model run uses the first three capped days for training
-(10,059 windows) and 2 March for validation (3,143 windows). Training loss is
-`[0.2647, 0.1222, 0.1032, 0.0883, 0.0845]`; validation loss is
-`[0.6115, 0.6836, 0.6784, 0.8365, 0.8864]`. The epoch-1 checkpoint
-(`python-ml/weights/world_model_v1.pt`, 603KB) is retained and passes the
-forward + K=5 rollout load test (`LOAD TEST PASS`).
+- World model (`world_model_v1.pt`, phase38-stage, GNN, K=3, threshold 0.5):
+  infiltration F1 **0.3454**, precision **0.50**, recall **0.2638**, FPR
+  **0.1639**, AUC-ROC 0.581. Stage six-class macro-F1 **0.244**
+  (IA 0.5612 / C2 0.4238 / Impact 0.4819; Recon/Lateral/Exfil 0.0 with zero
+  support in the selected CIC days).
+- Frozen logistic baseline re-evaluated on the IDENTICAL in-dist windows
+  (`results/baseline_metrics_indist.json`): binary F1 **0.6745**, precision
+  **0.6215**, recall **0.7374**, FPR **0.2793**, stage macro-F1 **0.4828**.
+  The world model currently TRAILS the baseline on in-dist F1 — reported
+  exactly as measured, not hidden.
+
+SECONDARY — whole-day cross-generalization stress test (train
+day14+day15+day28, validate whole day0302, unseen C2 dynamics):
+
+- World model: F1 **0.1489**, precision **0.1334**, recall **0.1684**, FPR
+  **0.1977**, AUC-ROC 0.471. Tracked separately and labeled as such; the gap
+  vs in-dist is the honest generalization limitation.
+- Early warning (Phase 33, partial): K=3 crosses the alert threshold 120s
+  before onset on both eligible validation attacks, but without a material
+  near-onset probability rise — early alerting, not a calibrated
+  rising-risk trajectory.
+
+The legacy pre-Phase-32 whole-day-only baseline (binary F1 0.3096 on the
+strict final-20%-of-joined-sequence holdout, stage macro-F1 0.0 on 481
+C2-only holdout windows) is superseded by the identical-split comparison
+above and retained in `results/baseline_metrics.json` for provenance only.
+
+The epoch-1 checkpoint (`python-ml/weights/world_model_v1.pt`, 603KB)
+passes the forward + K=5 rollout load test (`LOAD TEST PASS`).
 
 ## Known limitations and next phase
 
@@ -63,5 +116,7 @@ The official processed CIC CSVs omit endpoint IPs. They therefore exercise
 vector mode through the explicit `__network__` fallback, while real host
 topology is available for PCAP/enriched-flow input. The selected days contain
 only three of six stage classes; unsupported stages are not fabricated.
-Phase 31 should compare 5/10/30-second windows, followed by Phase 32's rollout-K
-and GNN-vs-flat ablation.
+CTU-13 Phases 58-60 must use a scenario OTHER than Scenario 6 (DonBot),
+which is reserved for packet-extractor development and excluded from
+zero-shot scoring. See `results/benchmark_table.csv` for the full
+model-vs-baseline comparison.
