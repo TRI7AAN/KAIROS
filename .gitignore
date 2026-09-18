@@ -59,6 +59,7 @@ python-ml/weights/*
 !python-ml/weights/baseline_*.joblib
 !python-ml/weights/shap_surrogate_v1.joblib
 !python-ml/weights/world_model_phase32.pt
+!python-ml/weights/world_model_v1_pretune_baseline_loss.pt
 results/*
 !results/.gitkeep
 !results/*.json

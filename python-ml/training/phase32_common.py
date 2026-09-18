@@ -125,12 +125,12 @@ def _stage_counts(graphs) -> dict:
 
 
 def make_model(node_dim: int, edge_dim: int, encoder: str = "gnn",
-               k_unused=None) -> NetworkWorldModel:
+               k_unused=None, dropout: float = DROPOUT) -> NetworkWorldModel:
     model = NetworkWorldModel(node_dim, edge_dim, hidden_dim=HIDDEN_DIM,
                               state_dim=STATE_DIM, sage_layers=SAGE_LAYERS,
                               transformer_layers=TRANSFORMER_LAYERS,
                               transformer_heads=TRANSFORMER_HEADS,
-                              dropout=DROPOUT)
+                              dropout=dropout)
     if encoder == "flat":
         model.encoder = FlatWindowEncoder(
             node_dim, edge_dim, hidden_dim=HIDDEN_DIM,
@@ -141,24 +141,31 @@ def make_model(node_dim: int, edge_dim: int, encoder: str = "gnn",
 
 
 def train_variant(tag: str, train_graphs, val_graphs, encoder: str,
-                  checkpoint_name: str, plot_title: str, *,
-                  dynamics_weight: float = 1.0,
-                  infiltration_weight: float = 1.0,
-                  stage_weight: float = 1.0,
-                  infiltration_alpha: float = 0.25) -> dict:
+                   checkpoint_name: str, plot_title: str, *,
+                   dynamics_weight: float = 1.0,
+                   infiltration_weight: float = 1.0,
+                   stage_weight: float = 1.0,
+                   infiltration_alpha: float = 0.25,
+                   weight_decay: float = 0.0,
+                   lr_schedule: str = "none",
+                   dropout: float = DROPOUT,
+                   epochs: int = EPOCHS) -> dict:
     torch.manual_seed(RANDOM_SEED)
     model = make_model(len(train_graphs_schema[0]), len(train_graphs_schema[1]),
-                       encoder=encoder)
+                       encoder=encoder, dropout=dropout)
     started = time.time()
     history = train_world_model(
         model, train_graphs, val_graphs,
         config=WorldModelTrainingConfig(
-            epochs=EPOCHS, chunk_length=CHUNK_LENGTH,
+            epochs=epochs, chunk_length=CHUNK_LENGTH,
             learning_rate=LEARNING_RATE, random_seed=RANDOM_SEED,
             dynamics_weight=dynamics_weight,
             infiltration_weight=infiltration_weight,
             stage_weight=stage_weight,
-            infiltration_alpha=infiltration_alpha),
+            infiltration_alpha=infiltration_alpha,
+            weight_decay=weight_decay,
+            lr_schedule=lr_schedule,
+            dropout=dropout),
         checkpoint_path=REPO_ROOT / "python-ml" / "weights" / checkpoint_name,
         config_path=REPO_ROOT / "results" / f"phase32_{tag}_config.json",
         history_path=REPO_ROOT / "results" / f"phase32_{tag}_history.json",

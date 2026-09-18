@@ -61,6 +61,17 @@
 - **58-60 (CTU-13 zero-shot):** NOT STARTED. Scenario 6 (DonBot) remains
   packet-extractor development data only, explicitly excluded from zero-shot
   scoring; the generalization test MUST use a different CTU-13 scenario.
+- **63 (retraining attempt, Option A):** genuine attempt, honestly negative.
+  Diagnosis: validation loss anti-correlates with F1 (dynamics-MSE ~95% of
+  joint loss); added dropout/weight-decay/cosine and aggressive loss
+  rebalancing all accelerate infiltration-head collapse; per-epoch F1 peaks
+  at ep1 (0.5671 @FPR 0.87) then collapses (max prob < 0.5 from ep8).
+  F1-selection probe (same recipe, 6 epochs, `results/phase63_retrain.json`)
+  picked ep3: F1 0.3132 / FPR 0.1424 vs canonical 0.3454 / 0.1694 — raw F1
+  REGRESSED, so the canonical checkpoint was KEPT (pre-attempt archive:
+  `world_model_v1_pretune_baseline_loss.pt`). The temporal architecture's
+  value proposition rests on explainability/stage-mapping/rollout, not raw
+  F1 superiority over the non-temporal baseline (0.7097).
 
 ## Real-data evidence
 

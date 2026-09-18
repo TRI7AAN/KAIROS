@@ -530,3 +530,20 @@ Java has a typed Python client and public `POST /forecast` endpoint, with a
 deterministic offline-local analyst narrative. File-upload orchestration,
 optional Gemini mode, React dashboard wiring, and full offline end-to-end
 verification remain Phase 48 onward.
+
+Phases 0-63 complete. Static pipeline (C++/Java/Python/React) fully verified
+end-to-end, offline by default, optional Gemini narrative mode gated and
+tested. World model retrained with F1-based checkpoint selection (same proven
+recipe, 6 epochs, no added regularization — added dropout/weight-decay/cosine
+and aggressive loss rebalancing were all trialed and rejected by evidence):
+in-distribution F1 0.3132 for the F1-selected state vs 0.3454 for the kept
+canonical checkpoint (baseline F1 0.7097), cross-day F1 0.1340 vs 0.1489,
+stage macro-F1 0.2397 vs 0.244. The baseline gap remains open with stated
+rationale — the temporal architecture's value proposition rests on
+explainability, stage mapping, and rollout capability rather than raw F1
+superiority; see `results/phase63_retrain.json` and
+`results/benchmark_table.csv`. CTU-13 zero-shot generalization test (Phases
+58-60) intentionally deferred — to be run on a scenario other than Scenario 6
+(DonBot, reserved for packet-level development) to preserve leakage-free
+evaluation. Next: Phase 66 (live-capture architecture and threat/safety
+model).

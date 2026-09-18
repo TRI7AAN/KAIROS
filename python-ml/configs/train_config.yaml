@@ -54,12 +54,22 @@ training:
   batch_size_chunks: 1
   learning_rate: 0.001
   optimizer: adamw
+  weight_decay: 0.0
+  lr_schedule: none
+  dropout: 0.1
   gradient_clip_norm: 1.0
   dynamics_weight: 1.0
   infiltration_weight: 1.0
   stage_weight: 1.0
   focal_gamma: 2.0
   random_seed: 42
+  # Checkpoint selection: validation LOSS (best_epoch). Phase 63 showed this
+  # anti-correlates with infiltration F1 on this task (dynamics-MSE ~95% of
+  # the joint loss dominates); a 6-epoch F1-selection probe (same recipe,
+  # results/phase63_retrain.json) picked ep3 with F1 0.3132 vs the
+  # loss-selected ep1's 0.3454 — i.e. F1-selection did NOT beat the canonical
+  # checkpoint either. Canonical checkpoint unchanged (pre-Phase-63 archive:
+  # python-ml/weights/world_model_v1_pretune_baseline_loss.pt).
 
 rollout:
   # K-step autoregressive rollout used for evaluation / load-test (Fix 3).

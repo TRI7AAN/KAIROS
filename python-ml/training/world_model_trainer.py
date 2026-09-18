@@ -26,6 +26,9 @@ class WorldModelTrainingConfig:
     infiltration_alpha: float = 0.25
     focal_gamma: float = 2.0
     random_seed: int = 42
+    weight_decay: float = 0.0
+    lr_schedule: str = "none"
+    dropout: float = 0.1
 
 
 @dataclass(frozen=True)
@@ -51,7 +54,24 @@ def train_world_model(
     if not training_days or not validation_days:
         raise ValueError("at least one training and validation day are required")
     torch.manual_seed(config.random_seed)
-    optimizer = torch.optim.AdamW(model.parameters(), lr=config.learning_rate)
+    optimizer = torch.optim.AdamW(
+        model.parameters(),
+        lr=config.learning_rate,
+        weight_decay=config.weight_decay,
+    )
+    scheduler = None
+    if config.lr_schedule == "cosine":
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+            optimizer, T_max=config.epochs
+        )
+    elif config.lr_schedule == "step":
+        scheduler = torch.optim.lr_scheduler.StepLR(
+            optimizer, step_size=max(1, config.epochs // 3), gamma=0.5
+        )
+    elif config.lr_schedule != "none":
+        raise ValueError(
+            f"unknown lr_schedule: {config.lr_schedule!r}"
+        )
     training_history: list[float] = []
     validation_history: list[float] = []
     best_loss = float("inf")
@@ -91,6 +111,8 @@ def train_world_model(
         validation_value = validation_total / validation_chunks
         training_history.append(training_value)
         validation_history.append(validation_value)
+        if scheduler is not None:
+            scheduler.step()
         if validation_value < best_loss:
             best_loss = validation_value
             best_epoch = epoch
