@@ -109,6 +109,8 @@ public final class LivePredictionService {
                         + ",\"quality\":\"" + qualityOf(prediction) + "\"}\n";
                 Files.writeString(file, line, StandardOpenOption.CREATE,
                         StandardOpenOption.APPEND);
+                sessions.recordWindow(sessionId,
+                        "{\"predictedStage\":\"" + prediction.predictedStage() + "\"}");
             } catch (IOException ignored) {
                 // Prediction was already produced; persistence is best-effort.
             }

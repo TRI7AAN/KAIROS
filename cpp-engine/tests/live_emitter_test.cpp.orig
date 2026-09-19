@@ -201,10 +201,6 @@ void generate_local_traffic(std::atomic<bool>& keep_running,
 } // namespace
 
 int main() {
-    if (::access("/usr/bin/dumpcap", X_OK) != 0) {
-        std::cout << "SKIP: /usr/bin/dumpcap is not installed or executable\n";
-        return 77;
-    }
     try {
         const auto path = std::filesystem::temp_directory_path() /
                           "kairos-live-emitter-test.pcap";
@@ -230,10 +226,6 @@ int main() {
             std::this_thread::sleep_for(std::chrono::milliseconds(200));
         }
         keep_running.store(false);
-    if (::access("/usr/bin/dumpcap", X_OK) != 0) {
-        std::cout << "SKIP: /usr/bin/dumpcap is not installed or executable\n";
-        return 77;
-    }
         generator.join();
         require(!session.running(), "capture did not self-stop");
         require(session.wait_for_exit(5U), "capture did not exit");

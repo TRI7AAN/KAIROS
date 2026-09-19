@@ -27,8 +27,7 @@ import java.util.concurrent.TimeUnit;
  * allowlisted local interfaces) with the truncated-capture convention
  * ({@code -s 256}, headers only) and dual autostop bounds
  * ({@code -a packets:N -a duration:N}). Enumerates interfaces via
- * {@code dumpcap -D -M} (libpcap's device list, machine-readable TSV on
- * Wireshark 4.x; JSON accepted when present) with
+ * {@code dumpcap -D -M} (libpcap's device list, machine-readable JSON) with
  * no hardcoded names. Counters come from the backend's own stderr
  * accounting, never simulated.
  */
@@ -148,7 +147,6 @@ public final class ProcessCaptureBackend implements CaptureBackend {
         } catch (InterruptedException interrupted) {
             Thread.currentThread().interrupt();
             throw new IOException("interrupted while waiting for capture", interrupted);
-        }
     }
 
     @Override
@@ -160,6 +158,7 @@ public final class ProcessCaptureBackend implements CaptureBackend {
         if (running.process().isAlive()) {
             return true;
         }
+        processes.remove(sessionId);
         return false;
     }
 
@@ -279,119 +278,33 @@ public final class ProcessCaptureBackend implements CaptureBackend {
         return any ? value : 0;
     }
 
-    static List<NetworkInterfaceInfo> parseInterfaces(String output) {
+    static List<NetworkInterfaceInfo> parseInterfaces(String json) {
         List<NetworkInterfaceInfo> interfaces = new ArrayList<>();
-        int arrayStart = output.indexOf('[');
-        if (arrayStart >= 0) {
-            int cursor = arrayStart;
-            while (true) {
-                int open = output.indexOf('{', cursor);
-                if (open < 0) {
-                    break;
-                }
-                int close = output.indexOf('}', open);
-                if (close < 0) {
-                    break;
-                }
-                String block = output.substring(open, close + 1);
-                cursor = close + 1;
-                int keyStart = block.indexOf('"');
-                if (keyStart < 0) {
-                    continue;
-                }
-                int keyEnd = block.indexOf('"', keyStart + 1);
-                if (keyEnd < 0) {
-                    continue;
-                }
-                String name = block.substring(keyStart + 1, keyEnd);
-                if (name.isBlank() || name.length() > 64
-                        || !name.matches("[A-Za-z0-9_.:\\-]+")) {
-                    continue;
-                }
-                boolean duplicate = false;
-                for (NetworkInterfaceInfo info : interfaces) {
-                    if (info.name().equals(name)) {
-                        duplicate = true;
-                        break;
-                    }
-                }
-                if (duplicate) {
-                    continue;
-                }
-                boolean loopback = block.contains("\"loopback\":true");
-                List<String> addresses = new ArrayList<>();
-                int addrPos = block.indexOf("\"addrs\":[");
-                if (addrPos >= 0) {
-                    int addrEnd = block.indexOf(']', addrPos + 9);
-                    if (addrEnd >= 0) {
-                        String list = block.substring(addrPos + 9, addrEnd);
-                        int q = 0;
-                        while (true) {
-                            int qs = list.indexOf('"', q);
-                            if (qs < 0) {
-                                break;
-                            }
-                            int qe = list.indexOf('"', qs + 1);
-                            if (qe < 0) {
-                                break;
-                            }
-                            addresses.add(list.substring(qs + 1, qe));
-                            q = qe + 1;
-                        }
-                    }
-                }
-                String description = "";
-                String friendlyKey = "\"friendly_name\":\"";
-                int friendly = block.indexOf(friendlyKey);
-                if (friendly >= 0) {
-                    int start = friendly + friendlyKey.length();
-                    int end = block.indexOf('"', start);
-                    if (end > start) {
-                        description = block.substring(start, end);
-                    }
-                }
-                interfaces.add(new NetworkInterfaceInfo(
-                        name, description, loopback, addresses));
-            }
-            if (!interfaces.isEmpty()) {
-                return interfaces;
-            }
+        int arrayStart = json.indexOf('[');
+        if (arrayStart < 0) {
+            return interfaces;
         }
-        // Line-based fallback for Wireshark 4.x `dumpcap -D [-M]`: one
-        // interface per line, e.g. "3. lo\t\tLoopback\t0\t127.0.0.1\tloopback".
-        for (String line : output.split("\n")) {
-            line = line.strip();
-            if (line.isEmpty()) {
+        int cursor = arrayStart;
+        while (true) {
+            int open = json.indexOf('{', cursor);
+            if (open < 0) {
+                break;
+            }
+            int close = json.indexOf('}', open);
+            if (close < 0) {
+                break;
+            }
+            String block = json.substring(open, close + 1);
+            cursor = close + 1;
+            int keyStart = block.indexOf('"');
+            if (keyStart < 0) {
                 continue;
             }
-            int dot = line.indexOf('.');
-            if (dot <= 0 || dot > 6) {
+            int keyEnd = block.indexOf('"', keyStart + 1);
+            if (keyEnd < 0) {
                 continue;
             }
-            boolean idxOk = true;
-            for (int i = 0; i < dot; i++) {
-                if (!Character.isDigit(line.charAt(i))) {
-                    idxOk = false;
-                    break;
-                }
-            }
-            if (!idxOk) {
-                continue;
-            }
-            int nameBegin = dot + 1;
-            while (nameBegin < line.length()
-                    && (line.charAt(nameBegin) == ' ' || line.charAt(nameBegin) == '\t')) {
-                nameBegin++;
-            }
-            int nameEnd = nameBegin;
-            while (nameEnd < line.length() && line.charAt(nameEnd) != ' '
-                    && line.charAt(nameEnd) != '\t' && line.charAt(nameEnd) != '(') {
-                nameEnd++;
-            }
-            if (nameBegin >= nameEnd) {
-                continue;
-            }
-            String name = line.substring(nameBegin, nameEnd).strip();
+            String name = block.substring(keyStart + 1, keyEnd);
             if (name.isBlank() || name.length() > 64
                     || !name.matches("[A-Za-z0-9_.:\\-]+")) {
                 continue;
@@ -406,27 +319,36 @@ public final class ProcessCaptureBackend implements CaptureBackend {
             if (duplicate) {
                 continue;
             }
-            String tail = nameEnd < line.length() ? line.substring(nameEnd) : "";
-            boolean loopback = name.equals("lo")
-                    || tail.toLowerCase(java.util.Locale.ROOT).contains("loopback");
+            boolean loopback = block.contains("\"loopback\":true");
             List<String> addresses = new ArrayList<>();
-            String description = "";
-            for (String tok : tail.replace('\t', ' ').replace(',', ' ').split("\\s+")) {
-                if (tok.isBlank()) {
-                    continue;
-                }
-                boolean hasDot = tok.contains(".");
-                boolean hasColon = tok.contains(":");
-                if (!hasDot && !hasColon) {
-                    if (description.isEmpty() && tok.length() > 1
-                            && !tok.equals("network") && !tok.equals("0")) {
-                        description = tok;
+            int addrPos = block.indexOf("\"addrs\":[");
+            if (addrPos >= 0) {
+                int addrEnd = block.indexOf(']', addrPos + 9);
+                if (addrEnd >= 0) {
+                    String list = block.substring(addrPos + 9, addrEnd);
+                    int q = 0;
+                    while (true) {
+                        int qs = list.indexOf('"', q);
+                        if (qs < 0) {
+                            break;
+                        }
+                        int qe = list.indexOf('"', qs + 1);
+                        if (qe < 0) {
+                            break;
+                        }
+                        addresses.add(list.substring(qs + 1, qe));
+                        q = qe + 1;
                     }
-                    continue;
                 }
-                if (tok.length() >= 3 && tok.length() <= 64
-                        && tok.matches("[A-Za-z0-9.:/]+")) {
-                    addresses.add(tok);
+            }
+            String description = "";
+            String friendlyKey = "\"friendly_name\":\"";
+            int friendly = block.indexOf(friendlyKey);
+            if (friendly >= 0) {
+                int start = friendly + friendlyKey.length();
+                int end = block.indexOf('"', start);
+                if (end > start) {
+                    description = block.substring(start, end);
                 }
             }
             interfaces.add(new NetworkInterfaceInfo(

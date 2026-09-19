@@ -51,11 +51,6 @@ public final class ConsentGateService {
 
     public ConsentGateService() {
         this(defaultAuditFile());
-        configureAllowlist(
-                configuredCsv(
-                        "kairos.live.allowedInterfaces",
-                        "KAIROS_LIVE_ALLOWED_INTERFACES"),
-                configuredCsv("kairos.live.allowedCidrs", "KAIROS_LIVE_ALLOWED_CIDRS"));
     }
 
     public ConsentGateService(Path auditFile) {
@@ -356,25 +351,6 @@ public final class ConsentGateService {
             return Path.of(configured);
         }
         return Path.of("live-sessions", "audit.log");
-    }
-
-    private static List<String> configuredCsv(
-            String propertyName, String environmentName) {
-        String configured = System.getProperty(propertyName);
-        if (configured == null || configured.isBlank()) {
-            configured = System.getenv(environmentName);
-        }
-        if (configured == null || configured.isBlank()) {
-            return List.of();
-        }
-        List<String> values = new ArrayList<>();
-        for (String value : configured.split(",")) {
-            String trimmed = value.trim();
-            if (!trimmed.isEmpty()) {
-                values.add(trimmed);
-            }
-        }
-        return List.copyOf(values);
     }
 
     static final class CidrRange {

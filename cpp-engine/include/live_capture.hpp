@@ -56,7 +56,8 @@ struct CaptureSessionResult {
  *
  * Enumeration shells to `dumpcap -D -M` (libpcap-backed enumeration, the same
  * device list libpcap's pcap_findalldevs reports) and parses the
- * machine-readable JSON; no interface name is hardcoded.
+ * machine-readable TSV lines (Wireshark 4.x; JSON accepted when present);
+ * no interface name is hardcoded.
  *
  * Capture shells to the file-capability dumpcap helper (`/usr/bin/dumpcap`,
  * cap_net_admin+cap_net_raw) so unprivileged operators can capture on

@@ -71,7 +71,8 @@ public final class LiveCaptureController {
 
     @GetMapping("/interfaces")
     public InterfacesResponse interfaces() {
-        return new InterfacesResponse(sessions.listInterfaces());
+        return new InterfacesResponse(
+                new ProcessCaptureBackend().listInterfaces());
     }
 
     @PostMapping("/sessions")

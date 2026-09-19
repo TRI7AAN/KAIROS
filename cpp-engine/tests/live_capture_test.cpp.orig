@@ -180,10 +180,6 @@ void packet_limit_capture_test() {
 } // namespace
 
 int main() {
-    if (::access("/usr/bin/dumpcap", X_OK) != 0) {
-        std::cout << "SKIP: /usr/bin/dumpcap is not installed or executable\n";
-        return 77;
-    }
     try {
         enumeration_test();
         unbounded_refused_test();

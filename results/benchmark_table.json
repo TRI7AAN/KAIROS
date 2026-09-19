@@ -1,0 +1,65 @@
+{
+  "artifact_version": "kairos.benchmark.v1",
+  "threshold": 0.5,
+  "rows": [
+    {
+      "model": "LogisticRegression-baseline",
+      "split": "strict final-20% joined (10561/2641) results/baseline_metrics.json",
+      "infiltration_f1": 0.3096,
+      "precision": 0.573,
+      "recall": 0.2121,
+      "fpr": 0.0352,
+      "stage_macro_f1": 0.0,
+      "lead_time": null,
+      "note": "Frozen baseline-v1; stage 0.0 is honest unseen-C2 (481 holdout all C2 absent from train)"
+    },
+    {
+      "model": "LogisticRegression-baseline",
+      "split": "identical in-dist per-day 80/20 (10589/2649) results/baseline_metrics_indist.json",
+      "infiltration_f1": 0.7097,
+      "precision": 0.6535,
+      "recall": 0.7765,
+      "fpr": 0.2578,
+      "stage_macro_f1": 0.4983,
+      "lead_time": null,
+      "note": "Same split as world-model Phase32 for valid head-to-head; non-temporal so no lead time"
+    },
+    {
+      "model": "WorldModel-GNN-K3-alpha075",
+      "split": "identical in-dist per-day 80/20 (10589/2649) results/phase32_completed.json",
+      "infiltration_f1": 0.3545,
+      "precision": 0.5027,
+      "recall": 0.2738,
+      "fpr": 0.1694,
+      "auc_roc": 0.5813,
+      "stage_macro_f1": 0.0335,
+      "lead_time_windows": 12,
+      "lead_time_seconds": 120,
+      "note": "Winner GNN alpha0.75 loss 0.5/3/3 K=3; flat encoder F1 0.0; rollout lead 120s"
+    },
+    {
+      "model": "WorldModel-GNN-K3-alpha075",
+      "split": "cross-day whole-day0302 secondary",
+      "infiltration_f1": 0.1455,
+      "precision": 0.13,
+      "recall": 0.165,
+      "fpr": 0.201,
+      "stage_macro_f1": 0.1666,
+      "lead_time_windows": 12,
+      "lead_time_seconds": 120,
+      "note": "Generalization stress test; retained as explicit limitation"
+    },
+    {
+      "model": "WorldModel-frozen",
+      "split": "CTU-13 Scenario6 development smoke, bounded 20k packets (443 hosts/1263 flows)",
+      "infiltration_f1": null,
+      "precision": null,
+      "recall": null,
+      "fpr": null,
+      "stage_macro_f1": null,
+      "lead_time": null,
+      "note": "Loss-aware packet-to-CIC projection scored as unreliable (max |z| 174.94). Development wiring result only; Scenario6 is excluded from zero-shot scoring, so metrics remain null."
+    }
+  ],
+  "takeaway": "World model beats baseline on early-warning (120s lead vs N/A) but trails identical-split F1 (0.3545 vs 0.7097) and degrades cross-day (0.1455). CTU-13 Scenario6 now exercises the full projected path, but its unreliable development-only score is not a generalization metric."
+}

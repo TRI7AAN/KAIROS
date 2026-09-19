@@ -28,7 +28,6 @@ from explain.shap_explain import (
 )
 from live_drift import assess_quality
 from phase32_common import CLASS_NAMES, make_model
-from pipeline.packet_projection import project_packet_contract
 from pipeline.graph_builder import GraphContractError, load_graph_sequence
 
 DEFAULT_CHECKPOINT = REPO_ROOT / "python-ml" / "weights" / "world_model_v1.pt"

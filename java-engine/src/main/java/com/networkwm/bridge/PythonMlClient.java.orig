@@ -51,10 +51,7 @@ public final class PythonMlClient {
             OkHttpClient http,
             ObjectMapper mapper) {
         this.http = Objects.requireNonNull(http, "http");
-        this.mapper = Objects.requireNonNull(mapper, "mapper")
-                .copy()
-                .registerModule(new JavaTimeModule())
-                .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+        this.mapper = Objects.requireNonNull(mapper, "mapper");
         HttpUrl parsed = HttpUrl.parse(Objects.requireNonNull(baseUrl, "baseUrl"));
         if (parsed == null || !List.of("http", "https").contains(parsed.scheme())) {
             throw new IllegalArgumentException("Invalid Python ML base URL");

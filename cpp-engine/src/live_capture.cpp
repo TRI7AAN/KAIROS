@@ -218,14 +218,15 @@ std::vector<NetworkInterfaceInfo> LiveCaptureSession::list_interfaces(
         error = "interface enumeration produced no output";
         return interfaces;
     }
-    std::size_t pos = 0;
+    // Wireshark 4.x `dumpcap -D -M` emits machine-readable TSV lines, not
+    // JSON, e.g.:
+    //   3. lo\t\tLoopback\t0\t127.0.0.1,::1\tloopback\t
+    // Older dev notes assumed a JSON shape; accept JSON when present but
+    // fall back to the line-based TSV/plain format actually observed.
     std::size_t array_start = output.find('[');
-    if (array_start == std::string::npos) {
-        error = "unexpected enumeration output shape";
-        return interfaces;
-    }
-    pos = array_start;
-    while ((pos = output.find('{', pos)) != std::string::npos) {
+    if (array_start != std::string::npos) {
+        std::size_t pos = array_start;
+        while ((pos = output.find('{', pos)) != std::string::npos) {
         const std::size_t block_end = output.find('}', pos);
         if (block_end == std::string::npos) {
             break;
@@ -296,6 +297,106 @@ std::vector<NetworkInterfaceInfo> LiveCaptureSession::list_interfaces(
             }
         }
         interfaces.push_back(std::move(info));
+        }
+    }
+    if (!interfaces.empty()) {
+        return interfaces;
+    }
+    // Line-based fallback: `dumpcap -D [-M]` prints one interface per line:
+    //   "1. eth0" (plain) or "3. lo\t\tLoopback\t0\t127.0.0.1\tloopback\t"
+    // (TSV machine-readable). Parse "<idx>. <name><tab/space>...".
+    {
+        std::istringstream lines(output);
+        std::string line;
+        while (std::getline(lines, line)) {
+            if (!line.empty() && line.back() == '\r') {
+                line.pop_back();
+            }
+            std::size_t dot = line.find('.');
+            if (dot == std::string::npos || dot == 0U || dot > 6U) {
+                continue;
+            }
+            bool idx_ok = true;
+            for (std::size_t i = 0; i < dot; ++i) {
+                if (!std::isdigit(static_cast<unsigned char>(line[i]))) {
+                    idx_ok = false;
+                    break;
+                }
+            }
+            if (!idx_ok) {
+                continue;
+            }
+            std::size_t name_begin = dot + 1;
+            while (name_begin < line.size() &&
+                   (line[name_begin] == ' ' || line[name_begin] == '\t')) {
+                ++name_begin;
+            }
+            std::size_t name_end = name_begin;
+            while (name_end < line.size() && line[name_end] != ' ' &&
+                   line[name_end] != '\t' && line[name_end] != '(') {
+                ++name_end;
+            }
+            std::string candidate = line.substr(name_begin, name_end - name_begin);
+            while (!candidate.empty() &&
+                   (candidate.back() == ' ' || candidate.back() == '\t')) {
+                candidate.pop_back();
+            }
+            if (!looks_like_interface_name(candidate)) {
+                continue;
+            }
+            if (std::any_of(interfaces.begin(), interfaces.end(),
+                            [&](const NetworkInterfaceInfo& info) {
+                                return info.name == candidate;
+                            })) {
+                continue;
+            }
+            NetworkInterfaceInfo info;
+            info.name = candidate;
+            std::string lower_rest = line.substr(name_end);
+            for (char& c : lower_rest) {
+                c = static_cast<char>(
+                    std::tolower(static_cast<unsigned char>(c)));
+            }
+            if (candidate == "lo" || lower_rest.find("loopback") != std::string::npos) {
+                info.loopback = true;
+            }
+            // Heuristic addresses: tab/comma separated tokens containing
+            // '.' or ':' that look like IPs.
+            std::string rest = line.substr(name_end);
+            for (char& c : rest) {
+                if (c == '\t' || c == ',') {
+                    c = ' ';
+                }
+            }
+            std::istringstream toks(rest);
+            std::string tok;
+            while (toks >> tok) {
+                if (tok.size() < 3U || tok.size() > 64U) {
+                    continue;
+                }
+                const bool has_dot = tok.find('.') != std::string::npos;
+                const bool has_colon = tok.find(':') != std::string::npos;
+                if (!has_dot && !has_colon) {
+                    if (info.description.empty() && tok.size() > 1U &&
+                        tok != "network" && tok != "0") {
+                        info.description = tok;
+                    }
+                    continue;
+                }
+                bool ip_like = true;
+                for (char c : tok) {
+                    if (!(std::isalnum(static_cast<unsigned char>(c)) != 0 ||
+                          c == '.' || c == ':' || c == '/')) {
+                        ip_like = false;
+                        break;
+                    }
+                }
+                if (ip_like) {
+                    info.addresses.push_back(tok);
+                }
+            }
+            interfaces.push_back(std::move(info));
+        }
     }
     if (interfaces.empty()) {
         error = "no interfaces parsed from enumeration output";
@@ -376,42 +477,42 @@ bool LiveCaptureSession::start(const CaptureSessionConfig& config) {
         const bool has_filter = !config.bpf_filter.empty();
         if (!has_filter && packets.empty() && duration.empty()) {
             ::execl(kDumpcapPath, "dumpcap", "-i",
-                    config.interface_name.c_str(), "-F", "pcap", "-s",
+                    config.interface_name.c_str(), "-P", "-s",
                     snap.c_str(), "-w", config.output_path.c_str(), "-q",
                     nullptr);
         } else if (!has_filter && !packets.empty() && duration.empty()) {
             ::execl(kDumpcapPath, "dumpcap", "-i",
-                    config.interface_name.c_str(), "-F", "pcap", "-s",
+                    config.interface_name.c_str(), "-P", "-s",
                     snap.c_str(), "-w", config.output_path.c_str(), "-q", "-a",
                     packets.c_str(), nullptr);
         } else if (!has_filter && packets.empty() && !duration.empty()) {
             ::execl(kDumpcapPath, "dumpcap", "-i",
-                    config.interface_name.c_str(), "-F", "pcap", "-s",
+                    config.interface_name.c_str(), "-P", "-s",
                     snap.c_str(), "-w", config.output_path.c_str(), "-q", "-a",
                     duration.c_str(), nullptr);
         } else if (!has_filter && !packets.empty() && !duration.empty()) {
             ::execl(kDumpcapPath, "dumpcap", "-i",
-                    config.interface_name.c_str(), "-F", "pcap", "-s",
+                    config.interface_name.c_str(), "-P", "-s",
                     snap.c_str(), "-w", config.output_path.c_str(), "-q", "-a",
                     packets.c_str(), "-a", duration.c_str(), nullptr);
         } else if (has_filter && packets.empty() && duration.empty()) {
             ::execl(kDumpcapPath, "dumpcap", "-i",
-                    config.interface_name.c_str(), "-F", "pcap", "-s",
+                    config.interface_name.c_str(), "-P", "-s",
                     snap.c_str(), "-w", config.output_path.c_str(), "-q", "-f",
                     config.bpf_filter.c_str(), nullptr);
         } else if (has_filter && !packets.empty() && duration.empty()) {
             ::execl(kDumpcapPath, "dumpcap", "-i",
-                    config.interface_name.c_str(), "-F", "pcap", "-s",
+                    config.interface_name.c_str(), "-P", "-s",
                     snap.c_str(), "-w", config.output_path.c_str(), "-q", "-f",
                     config.bpf_filter.c_str(), "-a", packets.c_str(), nullptr);
         } else if (has_filter && packets.empty() && !duration.empty()) {
             ::execl(kDumpcapPath, "dumpcap", "-i",
-                    config.interface_name.c_str(), "-F", "pcap", "-s",
+                    config.interface_name.c_str(), "-P", "-s",
                     snap.c_str(), "-w", config.output_path.c_str(), "-q", "-f",
                     config.bpf_filter.c_str(), "-a", duration.c_str(), nullptr);
         } else {
             ::execl(kDumpcapPath, "dumpcap", "-i",
-                    config.interface_name.c_str(), "-F", "pcap", "-s",
+                    config.interface_name.c_str(), "-P", "-s",
                     snap.c_str(), "-w", config.output_path.c_str(), "-q", "-f",
                     config.bpf_filter.c_str(), "-a", packets.c_str(), "-a",
                     duration.c_str(), nullptr);

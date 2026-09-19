@@ -281,25 +281,6 @@ class LiveSessionServiceTest {
                     "lo", "Loopback", true, List.of("127.0.0.1", "::1")));
         }
 
-        @Override
-        public List<String> drainWindows(String sessionId) {
-            Queue<String> queue = windows.get(sessionId);
-            if (queue == null) {
-                return List.of();
-            }
-            List<String> drained = new java.util.ArrayList<>();
-            String window;
-            while ((window = queue.poll()) != null) {
-                drained.add(window);
-            }
-            return drained;
-        }
-
-        private void deliverWindow(String sessionId, String window) {
-            windows.computeIfAbsent(
-                    sessionId, ignored -> new ConcurrentLinkedQueue<>()).add(window);
-        }
-
         private void deliverPackets(String sessionId, long count) {
             counters.computeIfAbsent(sessionId, ignored -> new AtomicLong())
                     .addAndGet(count);

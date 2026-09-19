@@ -491,47 +491,6 @@ public final class LiveSessionService {
             }
         }
 
-        private void drainBackendWindows() {
-            for (String raw : backend.drainWindows(sessionId)) {
-                if (raw == null || raw.isBlank()) {
-                    continue;
-                }
-                String line = raw.strip() + "\n";
-                try {
-                    Files.writeString(
-                            sessionDir.resolve("windows.jsonl"),
-                            line,
-                            java.nio.file.StandardOpenOption.CREATE,
-                            java.nio.file.StandardOpenOption.APPEND);
-                    windowCount.incrementAndGet();
-                } catch (IOException error) {
-                    markError();
-                    try {
-                        backend.stop(sessionId);
-                    } catch (IOException ignored) {
-                        // Preserve the original persistence failure.
-                    }
-                    cancelSupervisor();
-                    return;
-                }
-                try {
-                    windowConsumer.accept(sessionId, raw.strip());
-                } catch (RuntimeException predictionError) {
-                    try {
-                        String message = predictionError.toString()
-                                .replace('\n', ' ').replace('\r', ' ') + "\n";
-                        Files.writeString(
-                                sessionDir.resolve("prediction-errors.log"),
-                                message,
-                                java.nio.file.StandardOpenOption.CREATE,
-                                java.nio.file.StandardOpenOption.APPEND);
-                    } catch (IOException ignored) {
-                        // Raw window is durable; prediction failure is non-fatal.
-                    }
-                }
-            }
-        }
-
         private void countersFrom(CaptureBackend.CaptureCounters counters) {
             if (counters != null) {
                 packetCount.set(counters.received());

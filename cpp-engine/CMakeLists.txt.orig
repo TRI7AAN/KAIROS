@@ -27,11 +27,6 @@ target_include_directories(feature_extractor PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 
-add_executable(kairos_live_stream
-    src/live_stream_main.cpp
-)
-target_link_libraries(kairos_live_stream PRIVATE feature_extractor)
-
 find_package(JNI REQUIRED)
 add_library(kairos_native SHARED
     src/jni_bridge.cpp

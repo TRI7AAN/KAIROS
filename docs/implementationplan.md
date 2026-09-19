@@ -48,7 +48,16 @@ clear "done" state before moving on. Tackle one at a time.
   Java/Python contract, frozen logistic baselines, the GNN encoder, temporal
   dynamics with rollout and forecast heads, and the end-to-end training run
   with checkpoint, config, loss history, and load test are all done.
-  Phase 31 is next.
+- **Phases 31-57: complete (see docs/phase-status.md and results/).**
+  Window/K/encoder ablations, rollout proof, MITRE audit, stage fine-tune,
+  attention, SHAP surrogate, Flask `/predict`, Java client/controller,
+  offline narrative, Gemini optional + toggle, backend E2E test, React
+  console, offline verification, and sample polish are complete.
+- **Phase 58: complete with an explicit lossy adapter.** Packet-native CTU-13
+  windows project into the frozen CIC schema; unavailable CICFlowMeter fields
+  are zero-filled and drift quality is surfaced.
+- **Phases 59-60: pending.** A different, labeled CTU-13 scenario is required
+  for leakage-free zero-shot metrics; Scenario 6 remains development-only.
 
 ---
 
