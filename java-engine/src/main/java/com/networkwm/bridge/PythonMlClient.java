@@ -140,9 +140,14 @@ public final class PythonMlClient {
             @JsonProperty("top_5_features") List<FeatureContribution> topFeatures,
             @JsonProperty("attention_summary") AttentionSummary attentionSummary,
             Rollout rollout,
-            @JsonProperty("latency_ms") double latencyMs) {
+            @JsonProperty("latency_ms") double latencyMs,
+            String quality,
+            @JsonProperty("quality_detail")
+                    Map<String, Object> qualityDetail) {
         public PredictionResponse {
             topFeatures = topFeatures == null ? null : List.copyOf(topFeatures);
+            qualityDetail = qualityDetail == null
+                    ? Map.of() : Map.copyOf(qualityDetail);
         }
     }
 

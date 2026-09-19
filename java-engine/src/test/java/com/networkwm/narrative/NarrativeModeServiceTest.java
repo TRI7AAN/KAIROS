@@ -80,6 +80,8 @@ class NarrativeModeServiceTest {
                                 "INITIAL_ACCESS",
                                 "IMPACT"),
                         0.78),
-                140.0);
+                140.0,
+                "ok",
+                java.util.Map.of());
     }
 }

@@ -1,0 +1,267 @@
+package com.networkwm.live;
+
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
+import java.net.InetAddress;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.time.Duration;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+class LiveSessionServiceTest {
+    @TempDir
+    Path temporaryDirectory;
+
+    @Test
+    void startReceiveStopTerminatesBackendCleanly() throws Exception {
+        FakeBackend backend = new FakeBackend();
+        LiveSessionService service = new LiveSessionService(
+                backend, temporaryDirectory.resolve("sessions"));
+        try {
+            LiveSessionService.SessionView started = service.start(
+                    new LiveSessionService.StartRequest(
+                            "lo", "passive", 60L, null, ""));
+            assertEquals(LiveSessionService.SessionState.CAPTURING, started.state());
+            assertTrue(backend.running(started.sessionId()));
+
+            service.recordWindow(started.sessionId(), "{\"windowIndex\":0}");
+            service.recordWindow(started.sessionId(), "{\"windowIndex\":1}");
+
+            LiveSessionService.SessionView status =
+                    service.status(started.sessionId());
+            assertEquals(2L, status.windowCount());
+
+            LiveSessionService.SessionView stopped =
+                    service.stop(started.sessionId());
+            assertEquals(LiveSessionService.SessionState.STOPPED, stopped.state());
+            assertEquals(
+                    LiveSessionService.StopReason.REQUESTED, stopped.stopReason());
+            assertFalse(backend.running(started.sessionId()),
+                    "backend capture must not survive stop (orphan risk)");
+        } finally {
+            service.shutdown();
+        }
+    }
+
+    @Test
+    void supervisorSelfStopsAtPacketBound() throws Exception {
+        FakeBackend backend = new FakeBackend();
+        LiveSessionService service = new LiveSessionService(
+                backend, temporaryDirectory.resolve("sessions-packet"));
+        try {
+            LiveSessionService.SessionView started = service.start(
+                    new LiveSessionService.StartRequest(
+                            "lo", "passive", null, 3L, ""));
+            backend.deliverPackets(started.sessionId(), 3L);
+            LiveSessionService.SessionView terminal = awaitTerminal(service, started.sessionId());
+            assertEquals(LiveSessionService.SessionState.STOPPED, terminal.state());
+            assertEquals(
+                    LiveSessionService.StopReason.PACKET_LIMIT, terminal.stopReason());
+            assertTrue(terminal.packetCount() >= 3L);
+            assertFalse(backend.running(started.sessionId()));
+        } finally {
+            service.shutdown();
+        }
+    }
+
+    @Test
+    void unboundedStartIsRefused() {
+        FakeBackend backend = new FakeBackend();
+        LiveSessionService service = new LiveSessionService(
+                backend, temporaryDirectory.resolve("sessions-refuse"));
+        try {
+            assertThrows(IllegalArgumentException.class, () -> service.start(
+                    new LiveSessionService.StartRequest(
+                            "lo", "passive", null, null, "")));
+        } finally {
+            service.shutdown();
+        }
+    }
+
+    @Test
+    void unknownInterfaceIsRefused() {
+        FakeBackend backend = new FakeBackend();
+        LiveSessionService service = new LiveSessionService(
+                backend, temporaryDirectory.resolve("sessions-unknown"));
+        try {
+            assertThrows(IllegalArgumentException.class, () -> service.start(
+                    new LiveSessionService.StartRequest(
+                            "kairos-nonexistent0", "passive", 5L, null, "")));
+        } finally {
+            service.shutdown();
+        }
+    }
+
+    @Test
+    void nonPassiveModeIsRefused() {
+        FakeBackend backend = new FakeBackend();
+        LiveSessionService service = new LiveSessionService(
+                backend, temporaryDirectory.resolve("sessions-mode"));
+        try {
+            assertThrows(IllegalArgumentException.class, () -> service.start(
+                    new LiveSessionService.StartRequest(
+                            "lo", "active", 5L, null, "")));
+        } finally {
+            service.shutdown();
+        }
+    }
+
+    @Test
+    void realLoopbackCaptureSelfStopsWithRealCounters()
+            throws Exception {
+        List<NetworkInterfaceInfo> interfaces =
+                new ProcessCaptureBackend().listInterfaces();
+        assertFalse(interfaces.isEmpty(), "expected real enumerated interfaces");
+        assertTrue(interfaces.stream().anyMatch(info -> info.name().equals("lo")),
+                "expected loopback 'lo' enumerated, got: "
+                        + interfaces.stream().map(NetworkInterfaceInfo::name).toList());
+
+        Path sessionRoot = temporaryDirectory.resolve("sessions-real");
+        LiveSessionService service = new LiveSessionService(
+                new ProcessCaptureBackend(), sessionRoot);
+        try {
+            LiveSessionService.SessionView started = service.start(
+                    new LiveSessionService.StartRequest(
+                            "lo", "passive", 5L, null, "udp port 29971"));
+            Thread generator = new Thread(() -> {
+                try (DatagramSocket socket = new DatagramSocket()) {
+                    byte[] payload = new byte[120];
+                    InetAddress loopback = InetAddress.getByName("127.0.0.1");
+                    long deadline = System.currentTimeMillis() + 4500;
+                    while (System.currentTimeMillis() < deadline) {
+                        socket.send(new DatagramPacket(
+                                payload, payload.length, loopback, 29971));
+                        Thread.sleep(150);
+                    }
+                } catch (Exception ignored) {
+                    // Best-effort traffic generation only.
+                }
+            });
+            generator.setDaemon(true);
+            generator.start();
+            LiveSessionService.SessionView terminal =
+                    awaitTerminal(service, started.sessionId(), Duration.ofSeconds(20));
+            generator.join(5000);
+            assertEquals(LiveSessionService.SessionState.STOPPED, terminal.state());
+            assertTrue(terminal.packetCount() > 0,
+                    "expected real captured packets, got " + terminal.packetCount());
+            Path capture = sessionRoot.resolve(terminal.sessionId())
+                    .resolve("capture.pcap");
+            assertTrue(Files.exists(capture), "expected capture file on local disk");
+            assertTrue(Files.size(capture) > 24, "expected non-empty capture file");
+            assertTrue(new ProcessCaptureBackend()
+                    .listInterfaces().stream()
+                    .anyMatch(info -> info.name().equals("lo")));
+        } finally {
+            service.shutdown();
+        }
+    }
+
+    private static LiveSessionService.SessionView awaitTerminal(
+            LiveSessionService service, String sessionId) throws Exception {
+        return awaitTerminal(service, sessionId, Duration.ofSeconds(10));
+    }
+
+    private static LiveSessionService.SessionView awaitTerminal(
+            LiveSessionService service, String sessionId, Duration timeout)
+            throws Exception {
+        long deadline = System.currentTimeMillis() + timeout.toMillis();
+        while (System.currentTimeMillis() < deadline) {
+            LiveSessionService.SessionView view = service.status(sessionId);
+            if (view.state() == LiveSessionService.SessionState.STOPPED
+                    || view.state() == LiveSessionService.SessionState.ERROR) {
+                return view;
+            }
+            Thread.sleep(200);
+        }
+        throw new IllegalStateException("session did not reach a terminal state");
+    }
+
+    static final class FakeBackend implements CaptureBackend {
+        private final Map<String, AtomicLong> counters = new ConcurrentHashMap<>();
+        private final Map<String, Boolean> alive = new ConcurrentHashMap<>();
+
+        @Override
+        public void start(
+                String sessionId,
+                String interfaceName,
+                String bpfFilter,
+                long durationSeconds,
+                long packetLimit,
+                int snapLength,
+                Path captureFile) {
+            counters.put(sessionId, new AtomicLong());
+            alive.put(sessionId, true);
+            try {
+                Files.createDirectories(captureFile.getParent());
+                ByteArrayOutputStream header = new ByteArrayOutputStream();
+                header.write(new byte[24], 0, 24);
+                Files.write(captureFile, header.toByteArray());
+            } catch (IOException error) {
+                throw new IllegalStateException(error);
+            }
+        }
+
+        @Override
+        public void stop(String sessionId) {
+            alive.put(sessionId, false);
+        }
+
+        @Override
+        public void waitForExit(String sessionId, Duration timeout) {
+            alive.put(sessionId, false);
+        }
+
+        @Override
+        public boolean isRunning(String sessionId) {
+            return Boolean.TRUE.equals(alive.get(sessionId));
+        }
+
+        @Override
+        public CaptureCounters counters(String sessionId) {
+            long received = counters.getOrDefault(sessionId, new AtomicLong()).get();
+            return new CaptureCounters(received, received, 0);
+        }
+
+        @Override
+        public List<NetworkInterfaceInfo> listInterfaces() {
+            return List.of(new NetworkInterfaceInfo(
+                    "lo", "Loopback", true, List.of("127.0.0.1", "::1")));
+        }
+
+        private void deliverPackets(String sessionId, long count) {
+            counters.computeIfAbsent(sessionId, ignored -> new AtomicLong())
+                    .addAndGet(count);
+            try {
+                String note = "packets:" + count + "\n";
+                Files.writeString(
+                        Path.of(System.getProperty("java.io.tmpdir"),
+                                "kairos-fake-" + sessionId + ".log"),
+                        note,
+                        StandardCharsets.UTF_8,
+                        java.nio.file.StandardOpenOption.CREATE,
+                        java.nio.file.StandardOpenOption.APPEND);
+            } catch (IOException ignored) {
+                // Counter delivery is in-memory; the log is best-effort.
+            }
+        }
+
+        private boolean running(String sessionId) {
+            return isRunning(sessionId);
+        }
+    }
+}

@@ -8,8 +8,11 @@ present. Current real scope: the static offline pipeline (file upload →
 windowing → graph build → world-model inference → explanation → analyst
 narrative → dashboard) is complete and verified end-to-end (Phases 0–63),
 offline by default, with the baseline F1 gap honestly open (see Benchmark
-Results). A live-capture and authorized active-probe extension (Phases 66–78)
-is planned as a separate, higher-risk tier and has not started.
+Results). The passive live-capture tier (Phases 66–74, 76–77) is implemented
+and verified on loopback (see Roadmap table and `docs/phase-status.md`);
+authorized active probing (Phase 75) and the demo scenario (Phase 78) are
+not started — Stop Gate 1 was never reached, so no active-probe code path
+exists anywhere.
 
 ## Table of Contents
 
@@ -31,11 +34,14 @@ is planned as a separate, higher-risk tier and has not started.
 
 This project is a research/hackathon prototype. The verified static pipeline
 analyzes files you provide (PCAP/CSV upload) only — it performs no network
-capture and no active probing. Any future live-capture or active-probe
-capability (Phases 66–78, not started) must only be used on networks and
-hosts you own or are explicitly authorized to test. Active probing in
-particular carries legal responsibility resting entirely with the operator.
-The project maintainers are not responsible for misuse.
+capture and no active probing. The implemented passive live-capture tier
+(Phases 66–74, 76–77) captures packet headers on loopback/allowlisted local
+interfaces only, under a consent gate with a default-empty allowlist, and
+performs no active probing of any kind. Any future active-probe capability
+(Phase 75, not started — Stop Gate 1 never reached) must only be used on
+networks and hosts you own or are explicitly authorized to test. Active
+probing in particular carries legal responsibility resting entirely with
+the operator. The project maintainers are not responsible for misuse.
 
 ## Architecture Overview
 
@@ -52,21 +58,35 @@ for low-and-slow scans) are both required.
   headers, and runs a per-window port-scan signature detector (sequential
   vs. randomized). Exposed to Java via JNI (`libkairos_native.so`); a full
   3.28 GB scan completed without errors (17,412,467 supported packets,
-  1,976,965 flow records).
+  1,976,965 flow records). Live tier: `LiveCaptureSession` (real interface
+  enumeration, bounded capture with dual autostop, backend-accounted
+  packet/drop counters) and `LiveFeatureEmitter` (10s windows in the same
+  flow schema); ctest 3/3.
 - **Java (java-engine): orchestration engine and REST API.** CSV ingestion
   (header normalization, NaN/Infinity sanitization, timeline stage labels),
   10-second windowing, host-flow graph construction, the versioned
   `kairos.sequence.v1` JSON contract, the typed `PythonMlClient` REST
   client, narrative services, and the public `POST /forecast` and
-  `POST /forecast/upload` endpoints (Spring Boot).
+  `POST /forecast/upload` endpoints (Spring Boot). Live tier
+  (`com.networkwm.live`): `LiveSessionService` lifecycle supervisor,
+  `ProcessCaptureBackend`, `ConsentGateService` (default-empty allowlist,
+  DNS pinning, audit log), `LiveSequenceAdapter`, `LivePredictionService`,
+  and `LiveCaptureController` (`/live` sessions/interfaces/windows/purge
+  plus SSE event stream).
 - **Python (python-ml): world-model inference service (Flask).** GraphSAGE
   encoder → causal Transformer dynamics → K-step rollout → infiltration
   and stage forecast heads → SHAP/attention explanation. Internal
-  `POST /predict` endpoint (never called by the browser).
+  `POST /predict` endpoint (never called by the browser). Live tier: the
+  same checkpoint serves live windows with no architecture fork; every
+  response carries a reactive drift-guard `quality`
+  (`ok`/`degraded`/`unreliable`, `live_drift.py`, reference
+  `results/live_drift_reference.npz`).
 - **React (react-ui): dashboard.** Upload form, probability timeline,
   flagged flows table, stage annotations, narrative panel with mode badge,
   and a sample-attack quick-load button. Calls Java at
-  `POST /forecast/upload`.
+  `POST /forecast/upload`. Live tier: `LiveDashboard` (start/stop on real
+  `/live` sessions, SSE-driven counters/timeline/stage) with a prominent
+  `QualityBadge`.
 - **Narrative layer (Java, optional Gemini):** the **default is the
   offline-local rule-based generator** — deterministic templating, no
   network call. Gemini enhancement requires **both** `ONLINE_MODE=true`
@@ -147,7 +167,7 @@ cmake -S cpp-engine -B cpp-engine/cmake-build-local \
 
 # Java: JDK 17+, tested on JDK 21 — Maven via checked-in wrapper
 export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
-(cd java-engine && ./mvnw -o test)   # 20 tests, 0 failures (1 pre-existing skip)
+(cd java-engine && ./mvnw -o test)   # 47 tests, 0 failures (1 pre-existing skip)
 
 # Python: venv + pinned CPU-only requirements (tested on Python 3.13)
 python3 -m venv python-ml/venv \
@@ -366,12 +386,22 @@ private Python endpoint at `POST /predict`.
 - **Threshold dependence:** all reported F1 values use the fixed 0.5
   decision threshold retained for comparability; lower thresholds raise F1
   at steep FPR cost (e.g. ≈0.55 F1 at FPR ≈0.97 for threshold 0.3).
+- **Live tier verified on loopback only:** passive capture, windowing,
+  inference, and SSE streaming are proven against locally generated
+  loopback traffic (see `results/live_capture_performance.md`,
+  `results/phase76_regression.md`); behavior on busy non-loopback
+  interfaces is unmeasured. The drift guard flags 9/400 real day0302
+  windows as degraded/unreliable (see `results/live_drift_calibration.json`) —
+  expected tail behavior, not a defect.
+- **Active probing does not exist:** Phase 75 was not started (Stop Gate 1
+  never reached); `mode` must be exactly `passive` and any other value is
+  refused at the consent gate, session service, and REST boundary.
 
 ## Roadmap — Live-Capture and Active-Probe Extension (Phases 66–78)
 
 Full project history first (Phases 0–65, summarized from
 `docs/implementationplan.md` with actual completion status from the
-audits), then the planned live-capture tier (66–78).
+audits), then the live-capture tier (66–78, passive half implemented).
 
 ### Static pipeline history (Phases 0–65)
 
@@ -448,43 +478,44 @@ audits), then the planned live-capture tier (66–78).
 
 > The phases below extend KAIROS from static file analysis (PCAP/CSV
 > upload) to live network capture and, optionally, authorized active
-> probing. This is a distinct, higher-risk capability tier. Live passive
-> capture and active probing are NOT part of the verified, complete static
-> pipeline described above — they are planned/in-progress work, gated
-> behind explicit authorization, and must only be used on networks and
-> hosts you own or are explicitly authorized to test. Active probing in
-> particular carries legal responsibility resting entirely with the
-> operator.
+> probing. This is a distinct, higher-risk capability tier. The passive
+> live-capture half (Phases 66–74, 76–77) is implemented and verified on
+> loopback (see table statuses and `docs/phase-status.md`) — it is gated
+> behind explicit authorization and must only be used on networks and
+> hosts you own or are explicitly authorized to test. Active probing
+> (Phase 75) is NOT implemented and must not be described as working;
+> Stop Gate 1 was never reached, so no active-probe code path exists.
+> Active probing in particular carries legal responsibility resting
+> entirely with the operator.
 
-| Phase | Deliverable | Exit Criterion |
+| Phase | Deliverable | Status |
 |---|---|---|
-| 66 | Live-capture architecture and threat/safety model | API contracts, scope policy, retention policy, interface lifecycle documented |
-| 67 | C++ interface enumeration and passive capture | Lists interfaces; captures a bounded local session with BPF filter and packet/drop counters |
-| 68 | C++ live feature-window emitter | Emits the existing packet and flow feature schema every 10 seconds from live packets |
-| 69 | Java JNI live-session bridge | Java starts/stops C++ capture and receives validated window events |
-| 70 | Java target resolver and consent gate | URL/IP validation, DNS pinning, allowlist/lab policy, audit session record |
-| 71 | Java sequence adapter | Live windows convert into kairos.sequence.v1 and pass schema validation |
-| 72 | Python live inference and drift guard | Same model accepts live sequence windows and emits score/stage/XAI plus quality state |
-| 73 | React live dashboard | Start/stop controls, live timeline, counters, stage/XAI panel |
-| 74 | Streaming transport | WebSocket/SSE live updates without full-page polling |
-| 75 | Authorized probe-and-observe mode | Conservative, explicitly gated discovery with an auditable safe profile |
-| 76 | Offline and safety regression tests | Passive mode works with network disabled after traffic generation; active mode requires explicit authorization flag |
-| 77 | Performance and packet-loss validation | Measured throughput, drop-rate behaviour, bounded memory, capture backpressure tested |
-| 78 | Demo scenario and docs | Local Docker/lab attack simulation, evidence screenshots, scope/limitations documentation |
-
-Status: not yet started — none of Phases 66–78 has begun. Do not describe
-any capability from this table as working until its own phase-specific exit
-criterion has been met and independently verified.
+| 66 | Live-capture architecture and threat/safety model (`docs/live_capture_threat_model.md`) | Complete — API contracts, scope/retention policy, interface lifecycle, 8-row threat model documented |
+| 67 | C++ interface enumeration and passive capture (`live_capture.hpp/cpp`) | Complete — 8 real interfaces enumerated; 5s bounded run captured 47 real loopback packets and self-stopped; packet-limit run self-stopped at 4 |
+| 68 | C++ live feature-window emitter (`live_emitter.hpp/cpp`) | Complete — 32s capture → 211 packets → 4 windows, same flow schema, live-shaped window passes existing validator |
+| 69 | Java live-session bridge (`com.networkwm.live`: supervisor + backend) | Complete — start→windows→stop, no orphaned backend after stop; real 5s `lo` capture with real counters |
+| 70 | Java target resolver and consent gate | Complete — default-empty allowlist, DNS pinning, audit log; deny-path and allow-path tested |
+| 71 | Java sequence adapter | Complete — live windows validate as `kairos.sequence.v1`; malformed input rejected |
+| 72 | Python live inference and drift guard | Complete — same checkpoint serves live windows; reactive `ok`/`degraded`/`unreliable` quality |
+| 73 | React live dashboard (`LiveDashboard`, `QualityBadge`) | Complete — real session start/stop, SSE counters/timeline/stage, prominent quality badge |
+| 74 | Streaming transport | Complete — genuine SSE (`text/event-stream`, async, `data:` frames), persistent connection with disconnect handling |
+| 75 | Authorized probe-and-observe mode | Not started — Stop Gate 1 never reached; no active-probe code exists |
+| 76 | Offline and safety regression tests (`results/phase76_regression.md`) | Complete — netns-isolated passive capture works; active mode refused fresh 3/3 |
+| 77 | Performance and packet-loss validation (`results/live_capture_performance.md`) | Complete — 55/204/785 pps zero-loss; 662,520-packet burst, 0 drops; flat 4116 kB RSS; backpressure verified |
+| 78 | Demo scenario and docs | Not started |
 
 > Note: Phases 64–65 in the table above (pitch deck, clean-clone check) are
 > still open from the original 65-phase plan; Phases 66–78 below are a
-> separate live-capture tier and do not depend on them.
+> separate live-capture tier and do not depend on them. Neither Stop Gate
+> confirmation occurred in this session (no Stop Gate 1 scope was agreed,
+> so Phase 75 was correctly not implemented).
 
 ## Reproducibility
 
-Exact commands, all verified live (Python suite 12/12, Java suite 20 tests
-/ 0 failures, checkpoint load test `LOAD TEST PASS`, offline upload matrix
-HTTP 200 with `offline-local` narrative):
+Exact commands, all verified live (Python suite 12/12 static + 3/3 drift
+guard, Java suite 47 tests / 0 failures — 1 pre-existing skip, C++ ctest
+3/3, checkpoint load test `LOAD TEST PASS`, offline upload matrix HTTP 200
+with `offline-local` narrative):
 
 ```bash
 # Reload the canonical checkpoint + rollout load test
@@ -503,11 +534,16 @@ python-ml/venv/bin/python python-ml/training/run_phase63_retrain.py
 python-ml/venv/bin/python python-ml/explain/attention_viz.py
 python-ml/venv/bin/python python-ml/training/run_phase40_43_explainability.py
 
-# Test suites + UI build
+# Test suites + UI build (C++ live tests take ~40s: bounded captures)
+cmake -S cpp-engine -B cpp-engine/cmake-build-local && cmake --build cpp-engine/cmake-build-local
+(cd cpp-engine/cmake-build-local && ctest)   # 3/3 (static + live capture + live emitter)
 cd python-ml && ./venv/bin/python -m unittest tests.test_app \
-  tests.test_explainability tests.test_phase32_metrics
+  tests.test_explainability tests.test_phase32_metrics tests.test_live_drift
 cd ../java-engine && ./mvnw -o test
 cd ../react-ui && npm run build
+
+# Live-capture evidence (regenerate; results/ holds the measured output)
+python-ml/venv/bin/python python-ml/pipeline/make_drift_reference.py
 
 # Offline demo: see Quick Start above.
 ```

@@ -20,6 +20,8 @@ target_include_directories(feature_extractor_core PUBLIC
 
 add_library(feature_extractor STATIC
     $<TARGET_OBJECTS:feature_extractor_core>
+    src/live_capture.cpp
+    src/live_emitter.cpp
 )
 target_include_directories(feature_extractor PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/include
@@ -45,4 +47,14 @@ if(BUILD_TESTING)
     )
     target_link_libraries(feature_extractor_tests PRIVATE feature_extractor)
     add_test(NAME feature_extractor_tests COMMAND feature_extractor_tests)
+    add_executable(live_capture_tests
+        tests/live_capture_test.cpp
+    )
+    target_link_libraries(live_capture_tests PRIVATE feature_extractor)
+    add_test(NAME live_capture_tests COMMAND live_capture_tests)
+    add_executable(live_emitter_tests
+        tests/live_emitter_test.cpp
+    )
+    target_link_libraries(live_emitter_tests PRIVATE feature_extractor)
+    add_test(NAME live_emitter_tests COMMAND live_emitter_tests)
 endif()

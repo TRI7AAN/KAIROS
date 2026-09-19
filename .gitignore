@@ -68,4 +68,5 @@ results/*
 !results/*.png
 !results/*.csv
 !results/*.md
+!results/live_drift_reference.npz
 !results/phase39_attention_weights.pt

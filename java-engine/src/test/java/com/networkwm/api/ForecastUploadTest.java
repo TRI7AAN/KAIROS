@@ -78,7 +78,9 @@ class ForecastUploadTest {
                         List.of(0.73, 0.75, 0.78),
                         List.of("INITIAL_ACCESS", "INITIAL_ACCESS", "IMPACT"),
                         0.78),
-                140.0));
+                140.0,
+                "ok",
+                java.util.Map.of()));
 
         MockMultipartFile file = new MockMultipartFile(
                 "file", "traffic.csv", "text/csv",

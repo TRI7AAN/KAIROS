@@ -1,0 +1,142 @@
+package com.networkwm.live;
+
+import com.networkwm.bridge.PythonMlClient;
+import com.networkwm.bridge.PythonMlClient.PredictionResponse;
+import com.networkwm.graph.GraphContractService.GraphSequence;
+import jakarta.annotation.PreDestroy;
+import org.springframework.stereotype.Service;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.Consumer;
+
+/**
+ * Phase 72 (Java side) + Phase 74 support: live prediction fan-out.
+ *
+ * Sends each adapted live window (as a single-window
+ * {@code kairos.sequence.v1} contract) through the SAME
+ * {@link PythonMlClient} path as static forecasts, persists the
+ * prediction JSONL alongside the session, and fans the result out to SSE
+ * subscribers. The Python response already carries the Phase 72
+ * {@code quality} / {@code quality_detail} fields; this service passes
+ * them through untouched so the UI can flag degraded windows.
+ */
+@Service
+public final class LivePredictionService {
+    private final LiveSequenceAdapter adapter;
+    private final PythonMlClient python;
+    private final LiveSessionService sessions;
+    private final Map<String, List<Consumer<LivePrediction>>> listeners =
+            new ConcurrentHashMap<>();
+
+    public LivePredictionService(
+            LiveSequenceAdapter adapter,
+            PythonMlClient python,
+            LiveSessionService sessions) {
+        this.adapter = Objects.requireNonNull(adapter, "adapter");
+        this.python = Objects.requireNonNull(python, "python");
+        this.sessions = Objects.requireNonNull(sessions, "sessions");
+    }
+
+    public record LivePrediction(
+            String sessionId,
+            int windowIndex,
+            PredictionResponse prediction,
+            String quality) {
+    }
+
+    public LivePrediction predict(String sessionId, String liveWindowJson) {
+        Objects.requireNonNull(sessionId, "sessionId");
+        final GraphSequence sequence;
+        try {
+            sequence = adapter.adapt(liveWindowJson);
+        } catch (IOException | IllegalArgumentException error) {
+            throw new IllegalArgumentException(
+                    "live window rejected by sequence adapter: "
+                            + error.getMessage(),
+                    error);
+        }
+        final PredictionResponse prediction;
+        try {
+            prediction = python.predict(sequence, 3);
+        } catch (IOException error) {
+            throw new IllegalStateException(
+                    "Python ML service unavailable for live prediction", error);
+        }
+        String quality = qualityOf(prediction);
+        persist(sessionId, prediction);
+        LivePrediction event =
+                new LivePrediction(sessionId, windowIndexOf(sequence), prediction, quality);
+        emit(event);
+        return event;
+    }
+
+    public Runnable subscribe(String sessionId, Consumer<LivePrediction> listener) {
+        Objects.requireNonNull(sessionId, "sessionId");
+        Objects.requireNonNull(listener, "listener");
+        listeners.computeIfAbsent(sessionId, ignored -> new CopyOnWriteArrayList<>())
+                .add(listener);
+        return () -> listeners.getOrDefault(sessionId, List.of()).remove(listener);
+    }
+
+    private void emit(LivePrediction event) {
+        for (Consumer<LivePrediction> listener :
+                listeners.getOrDefault(event.sessionId(), List.of())) {
+            try {
+                listener.accept(event);
+            } catch (RuntimeException ignored) {
+                // One slow subscriber must not break prediction fan-out.
+            }
+        }
+    }
+
+    private void persist(String sessionId, PredictionResponse prediction) {
+        sessions.find(sessionId).ifPresent(view -> {
+            try {
+                Path dir = sessionDir(sessionId);
+                Files.createDirectories(dir);
+                Path file = dir.resolve("predictions.jsonl");
+                String line = "{\"probability\":" + prediction.probability()
+                        + ",\"predictedStage\":\"" + prediction.predictedStage() + "\""
+                        + ",\"quality\":\"" + qualityOf(prediction) + "\"}\n";
+                Files.writeString(file, line, StandardOpenOption.CREATE,
+                        StandardOpenOption.APPEND);
+                sessions.recordWindow(sessionId,
+                        "{\"predictedStage\":\"" + prediction.predictedStage() + "\"}");
+            } catch (IOException ignored) {
+                // Prediction was already produced; persistence is best-effort.
+            }
+        });
+    }
+
+    private static String qualityOf(PredictionResponse prediction) {
+        if (prediction == null || prediction.quality() == null
+                || prediction.quality().isBlank()) {
+            return "ok";
+        }
+        return prediction.quality();
+    }
+
+    private static int windowIndexOf(GraphSequence sequence) {
+        return Math.max(0, sequence.windows().size() - 1);
+    }
+
+    private static Path sessionDir(String sessionId) {
+        String configured = System.getProperty("kairos.live.dir");
+        Path root = configured == null || configured.isBlank()
+                ? Path.of("live-sessions") : Path.of(configured);
+        return root.resolve(sessionId);
+    }
+
+    @PreDestroy
+    void shutdown() {
+        listeners.clear();
+    }
+}

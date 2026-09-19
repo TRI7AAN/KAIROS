@@ -1,0 +1,23 @@
+{
+  "reference": "results/live_drift_reference.npz (means/stds over 1284 graph features, 1323-window every-10th training sample)",
+  "thresholds": {
+    "degraded": "max|z|>12 or frac|z|>5 above 2%",
+    "unreliable": "max|z|>20 or frac|z|>5 above 5%"
+  },
+  "calibration_400_windows_day0302": {
+    "ok": 391,
+    "degraded": 8,
+    "unreliable": 1,
+    "p99_max_z": 8.38,
+    "p95_frac_z5": 0.0023
+  },
+  "synthetic_shift_25sigma_40features": {
+    "quality": "unreliable",
+    "max_z": 25.0,
+    "frac_z5": 0.031
+  },
+  "malformed_NaN": {
+    "quality": "unreliable"
+  },
+  "note": "live windows reuse kairos.sequence.v1; drift guard reads graph-only prefix (temporal forecast-history features excluded)"
+}

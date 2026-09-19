@@ -58,6 +58,43 @@
 - **51-57:** React dashboard (upload wiring, probability timeline, flagged
   flows, stage annotations, narrative panel with mode badge, sample-attack
   quick-load) building cleanly via `npm run build`.
+- **66:** live-capture architecture + threat/safety model
+  (`docs/live_capture_threat_model.md`) — normative for Phases 67-77:
+  `/live` API contracts, truncated-capture scope policy, local-only
+  retention, IDLE→…→STOPPED/ERROR lifecycle, 8-row threat model.
+- **67:** real interface enumeration (8 interfaces, `lo` flagged loopback)
+  and bounded passive capture with dual autostop — 5s run captured 47 real
+  loopback packets and self-stopped; packet-limit run self-stopped at 4;
+  backend-accounted packet/drop counters (`ctest` live_capture_tests PASS).
+- **68:** live feature-window emitter in the existing flow schema (10s
+  windows) — 32s capture → 211 packets → 4 non-zero windows; live-shaped
+  window passes the existing `load_graph_sequence` validator
+  (`ctest` live_emitter_tests PASS).
+- **69:** Java live-session bridge (`com.networkwm.live`: supervisor +
+  backend) — start → windows → stop with no orphaned backend post-stop;
+  real 5s `lo` capture with real counters (`LiveSessionServiceTest` 6/6).
+- **70:** target resolver + consent gate — default-empty allowlist, DNS
+  pinning, append-only audit; allow-path and deny-path tested
+  (`ConsentGateServiceTest` 7/7; enforced at `POST /live/sessions`, 403).
+- **71:** sequence adapter — live windows validate as `kairos.sequence.v1`,
+  malformed input rejected with `live window N` errors
+  (`LiveSequenceAdapterTest` 4/4).
+- **72:** same-checkpoint live inference + reactive drift guard
+  (`ok`/`degraded`/`unreliable` via `python-ml/live_drift.py`,
+  `results/live_drift_reference.npz` + `results/live_drift_calibration.json`;
+  real window `ok`, 25σ-shifted `unreliable`, NaN `unreliable`;
+  `tests.test_live_drift` 3/3).
+- **73-74:** React `LiveDashboard` + `QualityBadge` on real `/live`
+  sessions; genuine SSE `text/event-stream` (`LiveControllerTest` 7/7).
+- **75 (active probing):** NOT STARTED — Stop Gate 1 never reached; no
+  active-probe code path exists (`mode` must be exactly `passive`).
+- **76:** offline + safety regression (`results/phase76_regression.md`) —
+  netns-isolated passive capture works; active refused fresh 3/3
+  (`Phase76ActiveRefusalTest`).
+- **77:** performance + packet-loss validation
+  (`results/live_capture_performance.md`) — 55/204/785 pps zero-loss;
+  662,520-packet burst, 0 drops; RSS flat at 4116 kB; backpressure verified.
+- **78 (demo scenario + docs):** NOT STARTED.
 - **58-60 (CTU-13 zero-shot):** NOT STARTED. Scenario 6 (DonBot) remains
   packet-extractor development data only, explicitly excluded from zero-shot
   scoring; the generalization test MUST use a different CTU-13 scenario.
@@ -85,6 +122,8 @@
 
 The JNI round-trip test passes without skips (surefire supplies the native
 library). Native extractor tests, all Java unit tests, and all Python tests pass.
+Current totals: Java 47 tests / 0 failures (1 pre-existing skip),
+Python 15 (12 static + 3 drift), C++ ctest 3/3.
 
 ## Current measured results (live-verified, in-distribution PRIMARY split)
 
@@ -131,3 +170,7 @@ CTU-13 Phases 58-60 must use a scenario OTHER than Scenario 6 (DonBot),
 which is reserved for packet-extractor development and excluded from
 zero-shot scoring. See `results/benchmark_table.csv` for the full
 model-vs-baseline comparison.
+Live-tier limits: verified on loopback only (non-loopback behavior
+unmeasured); drift guard flags 9/400 real day0302 windows as
+degraded/unreliable (documented tail behavior); Phase 75 (active probing)
+and Phase 78 (demo) not started — neither Stop Gate confirmation occurred.

@@ -26,6 +26,7 @@ from explain.shap_explain import (
     load_surrogate,
     temporal_context,
 )
+from live_drift import assess_quality
 from phase32_common import CLASS_NAMES, make_model
 from pipeline.graph_builder import GraphContractError, load_graph_sequence
 
@@ -133,6 +134,7 @@ class PredictionService:
                 len(context_probabilities),
             ),
         ))
+        quality = assess_quality(row[:-len(TEMPORAL_FEATURE_NAMES)])
         contributions, base_value = explain_row(
             self.surrogate, names, row, top_n=5)
         top_context = [
@@ -161,6 +163,14 @@ class PredictionService:
         response.update({
             "artifact_version": "kairos.prediction.v1",
             "forecast_horizon_windows": 1,
+            "quality": quality.quality,
+            "quality_detail": {
+                "max_abs_z": quality.max_abs_z,
+                "mean_abs_z": quality.mean_abs_z,
+                "frac_z_gt_5": quality.frac_z_gt_5,
+                "frac_z_gt_3": quality.frac_z_gt_3,
+                "checked_features": quality.checked_features,
+            },
             "window_seconds": float(
                 graphs[-1].window_duration_seconds.item()),
             "rollout": {

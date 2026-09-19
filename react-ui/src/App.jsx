@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import FlaggedFlowsTable from './components/FlaggedFlowsTable';
+import LiveDashboard from './components/LiveDashboard';
 import NarrativePanel from './components/NarrativePanel';
 import ProbabilityTimeline from './components/ProbabilityTimeline';
 import StageAnnotations from './components/StageAnnotations';
@@ -261,6 +262,8 @@ function App() {
             </div>
           </section>
         )}
+
+        <LiveDashboard />
       </main>
 
       <footer>
