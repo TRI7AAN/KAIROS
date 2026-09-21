@@ -29,15 +29,39 @@ public final class WindowingService {
     public List<TrafficWindow> windowAndMerge(
             List<FlowRecord> flowRecords,
             CppBridge.ExtractionBatch packetBatch) {
-        return windowAndMerge(flowRecords, packetBatch.flows(), DEFAULT_WINDOW);
+        return windowAndMerge(flowRecords, packetBatch, DEFAULT_WINDOW);
+    }
+
+    public List<TrafficWindow> windowAndMerge(
+            List<FlowRecord> flowRecords,
+            CppBridge.ExtractionBatch packetBatch,
+            Duration windowSize) {
+        Objects.requireNonNull(packetBatch, "packetBatch");
+        return windowAndMergeInternal(
+                flowRecords,
+                packetBatch.flows() == null
+                        ? List.of() : packetBatch.flows(),
+                packetBatch.portScans() == null
+                        ? List.of() : packetBatch.portScans(),
+                windowSize);
     }
 
     public List<TrafficWindow> windowAndMerge(
             List<FlowRecord> flowRecords,
             List<CppBridge.FlowFeatures> packetFlows,
             Duration windowSize) {
+        return windowAndMergeInternal(
+                flowRecords, packetFlows, List.of(), windowSize);
+    }
+
+    private List<TrafficWindow> windowAndMergeInternal(
+            List<FlowRecord> flowRecords,
+            List<CppBridge.FlowFeatures> packetFlows,
+            List<CppBridge.PortScanFeatures> portScans,
+            Duration windowSize) {
         Objects.requireNonNull(flowRecords, "flowRecords");
         Objects.requireNonNull(packetFlows, "packetFlows");
+        Objects.requireNonNull(portScans, "portScans");
         long windowSeconds = validateWindow(windowSize);
 
         Map<Instant, MutableWindow> windows = new TreeMap<>();
@@ -53,6 +77,15 @@ public final class WindowingService {
             windows.computeIfAbsent(
                     start, ignored -> new MutableWindow(start, windowSeconds))
                     .addPacket(packet);
+        }
+        for (CppBridge.PortScanFeatures scan : portScans) {
+            if (scan == null || scan.sourceIp() == null
+                    || scan.sourceIp().isBlank()) {
+                continue;
+            }
+            for (MutableWindow window : windows.values()) {
+                window.observeScan(scan);
+            }
         }
 
         return windows.values().stream()
@@ -188,6 +221,32 @@ public final class WindowingService {
             destination.flowCount++;
         }
 
+        /**
+         * Attaches capture-level port-scan evidence to the scanning host.
+         *
+         * <p>Mirrors {@code Ctu13PacketContractService} semantics: a scan is
+         * recorded only in windows where its source already appears as a
+         * host, so scan evidence is never attached to an invented host.
+         */
+        private void observeScan(CppBridge.PortScanFeatures scan) {
+            MutableHost host = hosts.get(scan.sourceIp());
+            if (host == null) {
+                return;
+            }
+            host.scanObservedPackets = Math.max(
+                    host.scanObservedPackets, scan.observedPackets());
+            host.scanUniqueDestinationPorts = Math.max(
+                    host.scanUniqueDestinationPorts,
+                    scan.uniqueDestinationPorts());
+            host.scanSequentialTransitionRatio = Math.max(
+                    host.scanSequentialTransitionRatio,
+                    scan.sequentialTransitionRatio());
+            String pattern = scan.pattern() == null
+                    ? "" : scan.pattern().toLowerCase(java.util.Locale.ROOT);
+            host.scanSequential |= pattern.contains("sequential");
+            host.scanRandomized |= pattern.contains("random");
+        }
+
         private TrafficWindow finish() {
             List<CombinedFlow> immutableFlows = flows.stream()
                     .map(value -> new CombinedFlow(value.flow, value.packet))
@@ -244,6 +303,11 @@ public final class WindowingService {
         private double synCount;
         private double ackCount;
         private final Set<Integer> uniqueDestinationPorts = new LinkedHashSet<>();
+        private long scanObservedPackets;
+        private long scanUniqueDestinationPorts;
+        private double scanSequentialTransitionRatio;
+        private boolean scanSequential;
+        private boolean scanRandomized;
 
         private MutableHost(String hostId, boolean topologyAvailable) {
             this.hostId = hostId;
@@ -260,7 +324,12 @@ public final class WindowingService {
                     synCount,
                     ackCount,
                     synCount / Math.max(ackCount, 1.0),
-                    topologyAvailable);
+                    topologyAvailable,
+                    scanObservedPackets,
+                    scanUniqueDestinationPorts,
+                    scanSequentialTransitionRatio,
+                    scanSequential,
+                    scanRandomized);
         }
     }
 
@@ -307,7 +376,12 @@ public final class WindowingService {
             double synCount,
             double ackCount,
             double synAckRatio,
-            boolean topologyAvailable) {
+            boolean topologyAvailable,
+            long scanObservedPackets,
+            long scanUniqueDestinationPorts,
+            double scanSequentialTransitionRatio,
+            boolean scanSequential,
+            boolean scanRandomized) {
     }
 
     public record TrafficWindow(

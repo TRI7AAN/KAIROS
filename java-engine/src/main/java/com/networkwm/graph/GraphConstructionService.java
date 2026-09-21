@@ -70,6 +70,16 @@ public final class GraphConstructionService {
         features.put("ack_count", host.ackCount());
         features.put("syn_ack_ratio", host.synAckRatio());
         features.put("topology_available", host.topologyAvailable() ? 1.0 : 0.0);
+        features.put("packet.capture_scan_observed_packets",
+                (double) host.scanObservedPackets());
+        features.put("packet.capture_scan_unique_destination_ports",
+                (double) host.scanUniqueDestinationPorts());
+        features.put("packet.capture_scan_sequential_transition_ratio",
+                host.scanSequentialTransitionRatio());
+        features.put("packet.capture_scan_pattern_sequential",
+                host.scanSequential() ? 1.0 : 0.0);
+        features.put("packet.capture_scan_pattern_randomized",
+                host.scanRandomized() ? 1.0 : 0.0);
         return new GraphNode(host.hostId(), Map.copyOf(features));
     }
 

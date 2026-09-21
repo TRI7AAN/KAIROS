@@ -289,11 +289,20 @@ from leave-one-source-day-out predictions inside development data only.
 | CTU-13 Scenario 12 LR | S6 train, S11 validate, S12 zero-shot, 10s | 0.3683 | 0.2695 | 0.5816 | 0.7410 | 0.3136 | N/A |
 | CTU-13 Scenario 12 KAIROS | S6 train, S11 validate, S12 zero-shot, 10s | 0.4746 | 0.3281 | 0.8571 | 0.8249 | 0.4579 | N/A |
 
-On the PS-aligned 60-second CIC forecast, KAIROS improves over the
-same-feature logistic baseline by **+0.0620 F1, +0.0365 precision, +0.0971
-recall, -0.0092 FPR, and +0.0681 ROC-AUC**. The older comparison was invalid
-as a headline result because logistic regression classified the current window
-while the transition head predicted a future window.
+On the PS-aligned 60-second CIC forecast, a separate temporal-feature
+classifier (ExtraTrees) improves over the same-feature logistic baseline by
+**+0.0620 F1, +0.0365 precision, +0.0971 recall, -0.0092 FPR, and +0.0681
+ROC-AUC**. The older comparison was invalid as a headline result because
+logistic regression classified the current window while the transition head
+predicted a future window. Stated plainly (Case B finding): the core
+world-model architecture (GNN-Transformer) currently underperforms the
+baseline on raw F1 (0.3545 vs 0.6770); a separate temporal-feature classifier
+(ExtraTrees) shows improvement (+0.0620 F1) but runs as a separate
+discriminative head outside the GNN-Transformer rollout path — it consumes
+no rollout, latent, or attention features, so this is not evidence that the
+world model's learned temporal dynamics beat the baseline. The Phase 63
+retraining attempt (F1-selected checkpoint, raw F1 0.3132 vs canonical
+0.3454) was honestly negative, so the canonical checkpoint was kept.
 Two-component forecasting architecture (honest): the GNN-Transformer learns `P(S_t+1|S_t)` for
 K-step rollout (120s early-alert) and causal attention; the calibrated
 infiltration probability comes from the temporal forecast head on the same
@@ -308,10 +317,19 @@ near-trivial CIC separability, not general stage reasoning.
 
 The external CTU row is deliberately retained: Scenario 6 is development,
 Scenario 11 is external validation, and Scenario 12 is untouched until final
-scoring. At 10 seconds KAIROS improves F1 (+0.1062), precision (+0.0586), and
-recall (+0.2755) over LR, but FPR worsens by 0.0839 and ranking remains weak.
-Longer horizons regress and are disclosed: h3 F1 −0.1203, h6 F1 −0.0324
-(see `docs/phase-status.md`). This is limited generalization, not a claim that domain shift is solved. Official CTU labels do not contain
+scoring. At 10 seconds the KAIROS temporal head improves F1 (+0.1062), precision (+0.0586), and
+recall (+0.2755) over LR, but FPR worsens by 0.0839 and ranking is
+below-random (AUC 0.4579). This below-random AUC was investigated as a
+possible label-polarity or score-direction bug and confirmed genuine: the
+positive class (From-Botnet windows) is encoded by one shared loader for all
+three scenarios, both models score `P(malicious)` via the same
+`predict_proba[:, 1]` path, and the identical code yields above-random
+validation AUCs (5/6 configs, e.g. LR h3 0.749, KAIROS h3 0.801) — so the
+model's predictions are anti-correlated with ground truth on this specific
+unseen botnet family (NSIS.ay), suggesting the learned features do not
+transfer to this attack pattern. Longer horizons regress on F1 and are
+disclosed: h3 F1 −0.1203, h6 F1 −0.0324 (h = horizon in 10s windows, i.e.
+30s/60s ahead; see `docs/phase-status.md`). This is limited generalization, not a claim that domain shift is solved. Official CTU labels do not contain
 MITRE stages, so no stage metric is fabricated.
 
 ## Explainability
@@ -407,13 +425,17 @@ private Python endpoint at `POST /predict`.
 - **Legacy next-window head trails baseline (retained honestly):**
   GNN-Transformer transition core F1 0.3545 vs identical-split LR 0.7097
   (threshold 0.5); Phase 63 F1-selection 0.3132 not promoted. The deployed
-  60s temporal head beats same-feature LR (0.7390 vs 0.6770) — see Benchmark
+  60s temporal head beats same-feature LR (0.7390 vs 0.6770) — but it is a
+  separate ExtraTrees classifier outside the world-model rollout path, not
+  evidence that the GNN-Transformer core beats the baseline — see Benchmark
   Results for the task-aligned comparison and its prevalence/stage caveats.
 - **Three MITRE stages unsupported (2/5 PS stages demonstrable):**
   Reconnaissance, Lateral Movement, Exfiltration have zero examples and are
   masked at runtime (`_supported_stage_index`), never predicted.
 - **CTU-13 zero-shot is limited generalization, not solved:**
-  S12 h1 F1 +0.1062 but FPR +0.0839 (0.7410→0.8249), AUC <0.5; h3/h6 regress
+  S12 h1 F1 +0.1062 but FPR +0.0839 (0.7410→0.8249), AUC 0.4579
+  (below random — investigated as a possible polarity/score bug, confirmed
+  genuine anti-correlation on the unseen NSIS.ay family); h3/h6 F1 regress
   (see phase-status). High-FPR domain shift explicit.
 - **Phase 33 is PARTIAL:** K=3 crosses the alert threshold 120s before
   onset on both eligible validation attacks, but the probability-rise
@@ -430,8 +452,15 @@ private Python endpoint at `POST /predict`.
   analyst verification.
 - **Topology scope:** endpoint IPs preserved as node IDs when present, excluded
   from numeric features by design; endpoint-free CIC uses `__network__`
-  fallback. PCAP upload bounded at 2M packets; verified via mocked-extractor
-  unit test + real JNI round-trip (no committed small-PCAP end-to-end yet).
+  fallback. PCAP upload bounded at 2M packets; the upload path fuses
+  capture-derived flow summaries (`flow.*`) with native packet features
+  (`packet.*`) from the same capture via `WindowingService.windowAndMerge()`
+  5-tuple matching (verified by a real-extractor upload test, both levels
+  non-zero, unobservable fields absent rather than zero-filled). CSV-only
+  uploads remain flow-level by necessity (endpoint-free, no packet source);
+  packet-level evidence is then marked explicitly unavailable in the UI, and
+  packet-to-CIC projection lists every zero-filled model input in
+  `inputProjectionDetail.unavailable_model_features`.
 - **Live tier verified on loopback only:** passive capture, windowing,
   inference, and SSE streaming are proven against locally generated
   loopback traffic (see `results/live_capture_performance.md`,

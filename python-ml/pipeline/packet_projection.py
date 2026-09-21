@@ -2,8 +2,11 @@
 
 The trained checkpoint consumes the exact CIC aggregate schema. Packet capture
 cannot reconstruct every CICFlowMeter field, so this module maps only directly
-observable quantities and fills unavailable fields with zero. The drift guard
-then labels the projected sample; callers must surface that quality signal.
+observable quantities and fills unavailable fields with zero. Every zero-filled
+model input is explicitly listed in ``unavailable_model_features`` so callers
+can surface it as "not measured" rather than presenting zeros as observations.
+The drift guard then labels the projected sample; callers must surface that
+quality signal.
 """
 
 from __future__ import annotations
@@ -141,6 +144,12 @@ def project_packet_contract(
                 statistic,
             )
 
+        derived_bases = set(_flow_values({}).keys())
+        unavailable_edge = sorted(
+            encoded for encoded in edge_names
+            if encoded.rsplit(".", 1)[0] not in derived_bases
+        )
+
         node_source = {
             "ack_count": 0.0,
             "flow_count": float(len(flows)),
@@ -228,6 +237,21 @@ def project_packet_contract(
                 "truncated_packet_count",
                 "capture_scan_unique_destination_ports",
             ],
+            "unavailable_model_features": {
+                "node": [
+                    "ack_count",
+                    "syn_count",
+                    "syn_ack_ratio",
+                    "inbound_bytes",
+                ],
+                "edge": unavailable_edge,
+                "note": (
+                    "Packet capture cannot observe TCP flag counts, "
+                    "backward-direction splits, or inter-arrival "
+                    "statistics. These model inputs are zero-filled, "
+                    "not measured — treat them as unavailable."
+                ),
+            },
         },
     }
     return projected, True

@@ -18,6 +18,13 @@ function StageAnnotations({ prediction }) {
   const horizons = prediction?.validatedForecast?.horizons || [];
   const coverage = prediction?.stageCoverage || {};
   const evidence = prediction?.inputProjectionDetail;
+  const hasProjectionInfo = prediction
+    && ('inputProjection' in prediction || 'inputProjectionDetail' in prediction);
+  const isPacketProjection = prediction?.inputProjection === 'packet-to-cic-v1';
+  const unavailable = evidence?.unavailable_model_features;
+  const unavailableNames = unavailable
+    ? [...(unavailable.edge || []), ...(unavailable.node || [])]
+    : [];
 
   return (
     <section className="panel stage-panel" aria-labelledby="stage-title">
@@ -49,6 +56,17 @@ function StageAnnotations({ prediction }) {
       {evidence && (
         <p className="packet-evidence-note">
           Packet evidence retained · {evidence.windows?.length || 0} windows · {evidence.preserved_empty_windows || 0} empty windows preserved.
+        </p>
+      )}
+      {hasProjectionInfo && isPacketProjection && unavailableNames.length > 0 && (
+        <p className="panel-note">
+          Unavailable from packet capture (zero-filled, not measured): {unavailableNames.join(', ')}.
+        </p>
+      )}
+      {hasProjectionInfo && !isPacketProjection && (
+        <p className="panel-note">
+          Packet-level evidence unavailable for this upload — flow-level input only
+          (TTL, TCP window, retransmissions, port-scan signatures not measured).
         </p>
       )}
     </section>

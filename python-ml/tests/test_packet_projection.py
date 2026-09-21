@@ -110,6 +110,13 @@ class PacketProjectionTest(unittest.TestCase):
         self.assertEqual(2.0, evidence["retransmission_count"])
         self.assertEqual(22.0,
                          evidence["capture_scan_unique_destination_ports"])
+        unavailable = detail["unavailable_model_features"]
+        self.assertIn("syn_count", unavailable["node"])
+        self.assertIn("ack_count", unavailable["node"])
+        self.assertNotIn("dst_port.mean", unavailable["edge"])
+        self.assertNotIn("flow_duration.sum", unavailable["edge"])
+        self.assertNotIn("tot_fwd_pkts.sum", unavailable["edge"])
+        self.assertTrue(unavailable["note"])
 
     def test_non_packet_contract_is_unchanged(self):
         contract = {"edgeFeatureNames": ["dst_port.mean"], "windows": []}

@@ -3,8 +3,13 @@ package com.networkwm.api;
 import com.networkwm.bridge.CppBridge;
 import com.networkwm.bridge.CppBridge.ExtractionBatch;
 import com.networkwm.graph.CicGraphDatasetService;
-import com.networkwm.graph.Ctu13PacketContractService;
+import com.networkwm.graph.GraphConstructionService;
+import com.networkwm.graph.GraphConstructionService.GraphSnapshot;
+import com.networkwm.graph.GraphContractService;
 import com.networkwm.graph.GraphContractService.GraphSequence;
+import com.networkwm.ingestion.IngestionService.FlowRecord;
+import com.networkwm.window.WindowingService;
+import com.networkwm.window.WindowingService.TrafficWindow;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -13,6 +18,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 
@@ -24,14 +30,18 @@ public final class UploadGraphService {
     private static final long WINDOW_SECONDS = 10L;
 
     private final CicGraphDatasetService cic;
-    private final Ctu13PacketContractService packetContracts;
+    private final WindowingService windowing;
+    private final GraphConstructionService graphs;
+    private final GraphContractService contracts;
     private final PacketExtractor packetExtractor;
 
     @Autowired
     public UploadGraphService(CicGraphDatasetService cic) {
         this(
                 cic,
-                new Ctu13PacketContractService(),
+                new WindowingService(),
+                new GraphConstructionService(),
+                new GraphContractService(),
                 path -> new CppBridge().extract(
                         path,
                         MAX_CAPTURE_PACKETS,
@@ -40,11 +50,14 @@ public final class UploadGraphService {
 
     UploadGraphService(
             CicGraphDatasetService cic,
-            Ctu13PacketContractService packetContracts,
+            WindowingService windowing,
+            GraphConstructionService graphs,
+            GraphContractService contracts,
             PacketExtractor packetExtractor) {
         this.cic = Objects.requireNonNull(cic, "cic");
-        this.packetContracts = Objects.requireNonNull(
-                packetContracts, "packetContracts");
+        this.windowing = Objects.requireNonNull(windowing, "windowing");
+        this.graphs = Objects.requireNonNull(graphs, "graphs");
+        this.contracts = Objects.requireNonNull(contracts, "contracts");
         this.packetExtractor = Objects.requireNonNull(
                 packetExtractor, "packetExtractor");
     }
@@ -83,14 +96,31 @@ public final class UploadGraphService {
         return cic.aggregateCsv(csv, Duration.ofSeconds(WINDOW_SECONDS));
     }
 
+    /**
+     * Builds one fused flow+packet record per 5-tuple from a single capture.
+     *
+     * <p>Flow-level summaries are derived from the same extraction batch via
+     * {@link CaptureFlowDeriver} and merged with the native packet features
+     * by {@link WindowingService#windowAndMerge} 5-tuple matching, so every
+     * combined flow carries real measured values on both sides — never
+     * zero-filled placeholders from an unrelated source.
+     */
     GraphSequence fromCapture(Path capture) throws IOException {
         ExtractionBatch extracted = packetExtractor.extract(capture);
-        if (extracted.flows().isEmpty()) {
+        List<CppBridge.FlowFeatures> packetFlows =
+                extracted.flows() == null
+                        ? List.of() : extracted.flows();
+        if (packetFlows.isEmpty()) {
             throw new IllegalArgumentException(
                     "capture contains no supported IPv4 TCP/UDP/ICMP flows");
         }
 
-        return packetContracts.fromTimeline(extracted, WINDOW_SECONDS);
+        List<FlowRecord> derivedFlows =
+                CaptureFlowDeriver.deriveFlowRecords(packetFlows);
+        List<TrafficWindow> windows = windowing.windowAndMerge(
+                derivedFlows, extracted, Duration.ofSeconds(WINDOW_SECONDS));
+        List<GraphSnapshot> snapshots = graphs.build(windows);
+        return contracts.sequence(snapshots);
     }
 
     @FunctionalInterface

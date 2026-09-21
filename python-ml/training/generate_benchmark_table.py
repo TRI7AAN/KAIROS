@@ -57,8 +57,13 @@ def main() -> int:
             ]["six_class_macro_f1"],
             "lead_time_seconds": 60,
             "note": (
-                "Separate ExtraTrees temporal forecasting component. Improves F1, precision, recall, "
-                "FPR, ROC-AUC, and observed-stage macro-F1 over same-feature LR."
+                "Separate ExtraTrees classifier on hand-crafted "
+                "backward-only temporal summaries. Improves F1, precision, "
+                "recall, FPR, ROC-AUC, and observed-stage macro-F1 over "
+                "same-feature LR, but consumes no GNN-Transformer rollout, "
+                "latent, or attention features — it is not the world-model "
+                "core (next row, F1 0.3545, which does not beat the "
+                "baseline)."
             ),
         },
         {
@@ -74,9 +79,13 @@ def main() -> int:
             "stage_macro_f1_six_class": 0.0335,
             "lead_time_seconds": 120,
             "note": (
-                "Retained for autoregressive state rollout and attention. Not used "
-                "as the headline baseline comparison because the old LR task was "
-                "current-window classification rather than future-window forecasting."
+                "Retained for autoregressive state rollout and attention. "
+                "Scores F1 0.3545 on its native next-window head versus "
+                "0.6770 for the same-split baseline: the world-model core "
+                "does not beat the baseline on raw F1. Not used as the "
+                "headline baseline comparison because the old LR task was "
+                "current-window classification rather than future-window "
+                "forecasting."
             ),
         },
         {
@@ -99,7 +108,10 @@ def main() -> int:
             "lead_time_seconds": 10,
             "note": (
                 "Improves F1, precision, and recall on untouched Scenario12, "
-                "but FPR and rank metrics expose substantial domain shift."
+                "but FPR worsens (+0.0839) and holdout ROC-AUC is below 0.5 "
+                "(0.4579): predictions anti-correlate with ground truth on "
+                "this unseen botnet family — substantial domain shift, not "
+                "solved generalization."
             ),
         },
     ]
@@ -118,18 +130,33 @@ def main() -> int:
             "same_future_target": True,
             "untouched_test": True,
             "improvement": primary["improvement"],
+            "attribution": {
+                "improvement_from_world_model_core": False,
+                "improvement_source": (
+                    "separate ExtraTrees discriminative head on "
+                    "hand-crafted temporal summaries; consumes no "
+                    "GNN-Transformer rollout, latent, or attention features"
+                ),
+                "world_model_core_native_head_f1": 0.3545,
+                "world_model_core_beats_baseline": False,
+            },
         },
         "protocol_source": "results/ps_aligned_benchmark.json",
         "external_generalization_source": "results/ctu13_unseen_scenario12.json",
         "legacy_transition_source": "results/phase32_completed.json",
         "rows": rows,
         "takeaway": (
-            "On the task-aligned CIC 60-second forecast, KAIROS improves every "
-            "required binary metric over same-feature logistic regression. "
-            "Scenario12 h1 shows limited zero-shot F1/precision/recall improvement "
-            "with high-FPR domain shift; h3 (F1 -0.1203) and h6 (F1 -0.0324) regress "
-            "and are disclosed in phase-status. Thresholds are development-calibrated "
-            "under prevalence shift (dev 7.7% vs test 38.5%); stage 1.0 reflects "
+            "On the task-aligned CIC 60-second forecast, a separate "
+            "ExtraTrees classifier improves every required binary metric "
+            "over same-feature logistic regression — but it consumes no "
+            "world-model representations, and the GNN-Transformer core "
+            "(F1 0.3545 vs baseline 0.6770) does not beat the baseline. "
+            "Scenario12 h1 shows limited zero-shot F1/precision/recall "
+            "improvement with high-FPR domain shift and below-random "
+            "ranking (AUC 0.4579, anti-correlated on this botnet family); "
+            "h3 (F1 -0.1203) and h6 (F1 -0.0324) regress and are disclosed "
+            "in phase-status. Thresholds are development-calibrated under "
+            "prevalence shift (dev 7.7% vs test 38.5%); stage 1.0 reflects "
             "near-trivial CIC separability."
         ),
     }

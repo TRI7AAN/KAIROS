@@ -24,9 +24,11 @@ class GraphConstructionServiceTest {
                 Map.of("flow_duration", 25.0),
                 "FTP-BruteForce", "FTP-BruteForce", AttackStage.INITIAL_ACCESS);
         HostAggregate source = new HostAggregate(
-                "10.0.0.1", 10, 20, 1, 1, 2, 1, 2, true);
+                "10.0.0.1", 10, 20, 1, 1, 2, 1, 2, true,
+                0L, 0L, 0.0, false, false);
         HostAggregate destination = new HostAggregate(
-                "10.0.0.2", 20, 10, 1, 0, 2, 1, 2, true);
+                "10.0.0.2", 20, 10, 1, 0, 2, 1, 2, true,
+                0L, 0L, 0.0, false, false);
         TrafficWindow window = new TrafficWindow(
                 Instant.ofEpochSecond(10),
                 Instant.ofEpochSecond(20),

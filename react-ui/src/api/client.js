@@ -77,6 +77,7 @@ export async function forecastTraffic(file, rolloutSteps = 5, signal) {
         policy: raw.stage_coverage?.policy || '',
       },
       inputProjectionDetail: raw.input_projection_detail || null,
+      inputProjection: raw.input_projection || 'none',
       latencyMs: raw.latency_ms || 0,
     },
   };

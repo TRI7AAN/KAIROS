@@ -76,4 +76,41 @@ class WindowingServiceTest {
         assertFalse(window.hosts().get(
                 WindowingService.NETWORK_FALLBACK_NODE).topologyAvailable());
     }
+
+    @Test
+    void carriesPortScanEvidenceIntoFusedWindowHosts() {
+        FlowRecord flow = new FlowRecord(
+                Instant.ofEpochSecond(21),
+                "10.0.0.9",
+                "10.0.0.10",
+                4000,
+                80,
+                6,
+                Map.of("totlen_fwd_pkts", 50.0, "totlen_bwd_pkts", 10.0),
+                "Benign",
+                "Benign",
+                AttackStage.NONE);
+        CppBridge.FlowFeatures packet = new CppBridge.FlowFeatures(
+                "10.0.0.9", "10.0.0.10", 4000, 80, 6, 3,
+                21_000_000L, 23_000_000L,
+                60.0, 0.0, 0.0, 0, 0, 0, 10.0, 0.0, 0.0);
+        CppBridge.ExtractionBatch batch = new CppBridge.ExtractionBatch(
+                List.of(packet),
+                List.of(new CppBridge.PortScanFeatures(
+                        "10.0.0.9", 30, 25, 0.9, "sequential")));
+
+        List<WindowingService.TrafficWindow> windows =
+                new WindowingService().windowAndMerge(
+                        List.of(flow), batch, Duration.ofSeconds(10));
+
+        assertEquals(1, windows.size());
+        WindowingService.HostAggregate scanner =
+                windows.get(0).hosts().get("10.0.0.9");
+        assertNotNull(scanner);
+        assertEquals(30L, scanner.scanObservedPackets());
+        assertEquals(25L, scanner.scanUniqueDestinationPorts());
+        assertEquals(0.9, scanner.scanSequentialTransitionRatio(), 1e-12);
+        assertTrue(scanner.scanSequential());
+        assertFalse(scanner.scanRandomized());
+    }
 }
