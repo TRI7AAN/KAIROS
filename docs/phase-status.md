@@ -125,7 +125,7 @@
 
 The JNI round-trip test passes without skips (surefire supplies the native
 library). Native extractor tests, all Java unit tests, and all Python tests pass.
-Current totals: Java 60 tests / 0 failures (1 pre-existing skip
+Current totals (re-run 2026-09-21): Java 61 tests / 0 failures (1 pre-existing skip
 `RealCicCsvIntegrationTest`), Python 35 (unittest discover) + 3 PS-alignment
 guards, C++ ctest 3/3.
 

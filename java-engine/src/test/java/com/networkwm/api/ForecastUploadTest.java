@@ -96,6 +96,8 @@ class ForecastUploadTest {
                 .andExpect(jsonPath("$.prediction.probability").value(0.73))
                 .andExpect(jsonPath("$.prediction.predicted_stage")
                         .value("INITIAL_ACCESS"))
+                .andExpect(jsonPath("$.prediction.input_projection")
+                        .value("none"))
                 .andExpect(jsonPath("$.narrative.mode").value("offline-local"))
                 .andExpect(jsonPath("$.narrative.text").isNotEmpty());
     }

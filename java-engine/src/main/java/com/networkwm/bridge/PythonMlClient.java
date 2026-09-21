@@ -152,7 +152,8 @@ public final class PythonMlClient {
             @JsonProperty("stage_coverage")
                     Map<String, Object> stageCoverage,
             @JsonProperty("input_projection_detail")
-                    Map<String, Object> inputProjectionDetail) {
+                    Map<String, Object> inputProjectionDetail,
+            @JsonProperty("input_projection") String inputProjection) {
         public PredictionResponse(
                 String artifactVersion,
                 double probability,
@@ -175,7 +176,8 @@ public final class PythonMlClient {
                     qualityDetail,
                     Map.of(),
                     Map.of(),
-                    Map.of());
+                    Map.of(),
+                    "none");
         }
 
         public PredictionResponse {
@@ -188,6 +190,8 @@ public final class PythonMlClient {
                     ? Map.of() : Map.copyOf(stageCoverage);
             inputProjectionDetail = inputProjectionDetail == null
                     ? Map.of() : Map.copyOf(inputProjectionDetail);
+            inputProjection = inputProjection == null
+                    || inputProjection.isBlank() ? "none" : inputProjection;
         }
     }
 

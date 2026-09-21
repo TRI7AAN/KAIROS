@@ -422,25 +422,39 @@ private Python endpoint at `POST /predict`.
 
 ## Known Limitations
 
-- **Legacy next-window head trails baseline (retained honestly):**
-  GNN-Transformer transition core F1 0.3545 vs identical-split LR 0.7097
-  (threshold 0.5); Phase 63 F1-selection 0.3132 not promoted. The deployed
-  60s temporal head beats same-feature LR (0.7390 vs 0.6770) — but it is a
-  separate ExtraTrees classifier outside the world-model rollout path, not
-  evidence that the GNN-Transformer core beats the baseline — see Benchmark
-  Results for the task-aligned comparison and its prevalence/stage caveats.
-- **Three MITRE stages unsupported (2/5 PS stages demonstrable):**
-  Reconnaissance, Lateral Movement, Exfiltration have zero examples and are
-  masked at runtime (`_supported_stage_index`), never predicted.
-- **CTU-13 zero-shot is limited generalization, not solved:**
-  S12 h1 F1 +0.1062 but FPR +0.0839 (0.7410→0.8249), AUC 0.4579
-  (below random — investigated as a possible polarity/score bug, confirmed
-  genuine anti-correlation on the unseen NSIS.ay family); h3/h6 F1 regress
-  (see phase-status). High-FPR domain shift explicit.
-- **Phase 33 is PARTIAL:** K=3 crosses the alert threshold 120s before
-  onset on both eligible validation attacks, but the probability-rise
-  criterion did not pass — early alerting, not a calibrated rising-risk
-  trajectory. Rollout `max_probability` is a threshold-cross signal.
+- **Core world-model benchmark — most consequential open gap (Item 15):**
+  The GNN-Transformer core (F1 0.3545) currently trails the logistic
+  regression baseline (F1 0.6770) on the in-distribution split. A separate
+  ExtraTrees classifier shows improvement (+0.0620 F1) but is
+  architecturally independent of the world model's rollout/latent states
+  (Case B, confirmed: it consumes no rollout, latent, or attention
+  features) — do not read that second model's result as validating the
+  core architecture. Closing this requires further training investment on
+  the core objective, not reframing.
+- **Three MITRE stages unsupported (Item 4):** only 2 of the 5 PS-named
+  stages (Initial Access, Command & Control) plus one CIC-specific extra
+  (Impact) have real training support from the selected datasets;
+  Reconnaissance, Lateral Movement, and Exfiltration are structurally
+  unsupported and masked in output (`_supported_stage_index`), never
+  predicted. Closing this requires additional labeled data covering those
+  stages, not a code fix.
+- **Cross-domain generalization (Item 8):** CTU-13 Scenario 12 zero-shot
+  testing shows genuine, bug-checked anti-correlation (AUC 0.4579, below
+  0.5) against the NSIS.ay botnet family specifically — the model does
+  not currently transfer to this specific unseen attack family — with FPR
+  increasing (0.7410→0.8249) and longer rollout horizons (h3/h6)
+  regressing further (see phase-status). Closing this requires
+  cross-family training data or domain-adaptation work, not tuning.
+- **Rollout calibration status (Item 3):** the K-step autoregressive
+  rollout is genuine and verified (not a static classifier), but its
+  output is currently presented as a diagnostic transition-probability
+  signal rather than a calibrated primary forecast (K=3 crosses the alert
+  threshold 120s before onset on both eligible validation attacks, but
+  the probability-rise criterion did not pass — early alerting, not a
+  calibrated rising-risk trajectory; rollout `max_probability` is a
+  threshold-cross signal). Promoting it to the primary forecast would
+  require calibration evidence (e.g., reliability diagrams, Brier score
+  validation) not yet produced.
 - **Cross-day generalization is weak:** F1 0.1489 on the whole-day-03-02
   stress test (unseen C2 dynamics), tracked separately by design.
 - **Threshold dependence:** legacy rows use fixed 0.5; v2 primary rows use

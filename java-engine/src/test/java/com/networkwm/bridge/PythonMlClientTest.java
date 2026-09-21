@@ -36,7 +36,8 @@ class PythonMlClientTest {
                 "predicted_stages":["INITIAL_ACCESS","INITIAL_ACCESS","IMPACT"],
                 "max_probability":0.78
               },
-              "latency_ms":140.0
+              "latency_ms":140.0,
+              "input_projection":"packet-to-cic-v1"
             }
             """;
 
@@ -57,6 +58,7 @@ class PythonMlClientTest {
             assertEquals("INITIAL_ACCESS", response.predictedStage());
             assertEquals(1, response.topFeatures().size());
             assertEquals(0.78, response.rollout().maxProbability());
+            assertEquals("packet-to-cic-v1", response.inputProjection());
             JsonNode request = new ObjectMapper().readTree(body.get());
             assertEquals(3, request.get("rolloutSteps").asInt());
             assertEquals("kairos.sequence.v1",
