@@ -1,0 +1,1320 @@
+{
+  "artifact_version": "kairos.ps-aligned-benchmark.v1",
+  "random_seed": 42,
+  "window_seconds": 10,
+  "protocol": {
+    "task": "predict infiltration/stage at t+h using observations through t",
+    "features": "identical backward-only temporal graph summaries for both models",
+    "split": "per-day first 80% development / final 20% untouched chronological test",
+    "selection": "model fixed in code; threshold from leave-one-source-day-out development predictions",
+    "leakage_controls": [
+      "future window values and labels excluded from features",
+      "each calibration scaler/model fitted without its held-out source day",
+      "final scaler/model fitted on development data only",
+      "test excluded from model and threshold selection",
+      "source sequence boundaries never crossed"
+    ],
+    "baseline": "class-balanced logistic regression",
+    "kairos_head": "class-balanced ExtraTrees nonlinear temporal forecast head",
+    "caveat": "This discriminative head complements the GNN-Transformer world model; it does not replace transition-state rollout evaluation."
+  },
+  "sources": [
+    {
+      "name": "day14.json",
+      "path": "data/processed/cic-2018-02-14-10s.json",
+      "sha256": "d2a807ddb999978a4dcc801d00d85dc9f9c0a03ca558cb89521d06e27dcc2ef6"
+    },
+    {
+      "name": "day15.json",
+      "path": "data/processed/cic-2018-02-15-10s.json",
+      "sha256": "3821d80ba256b182863d9b6d3e51aa6586836fe5de409274f28c5835e03aef33"
+    },
+    {
+      "name": "day28.json",
+      "path": "data/processed/cic-2018-02-28-10s.json",
+      "sha256": "9a5b44d774ecb94d06abadf96f33c4fa430c9df8a849ba3c656e8d4580ecd376"
+    },
+    {
+      "name": "day0302.json",
+      "path": "data/processed/graph_contracts/day0302.json",
+      "sha256": "baf39dbef2ca86326fa0f92886ea94df705832e97fcfefd498d22d97ece87d6d"
+    }
+  ],
+  "horizons": {
+    "1": {
+      "horizon_windows": 1,
+      "horizon_seconds": 10,
+      "history_windows": 6,
+      "history_seconds": 60,
+      "split_report": {
+        "day14.json": {
+          "windows": 3260,
+          "development_target_range": [
+            6,
+            2607
+          ],
+          "test_target_range": [
+            2608,
+            3259
+          ]
+        },
+        "day15.json": {
+          "windows": 3429,
+          "development_target_range": [
+            6,
+            2742
+          ],
+          "test_target_range": [
+            2743,
+            3428
+          ]
+        },
+        "day28.json": {
+          "windows": 3406,
+          "development_target_range": [
+            6,
+            2723
+          ],
+          "test_target_range": [
+            2724,
+            3405
+          ]
+        },
+        "day0302.json": {
+          "windows": 3143,
+          "development_target_range": [
+            6,
+            2513
+          ],
+          "test_target_range": [
+            2514,
+            3142
+          ]
+        }
+      },
+      "sample_counts": {
+        "development": 10565,
+        "test": 2649
+      },
+      "feature_count": 6420,
+      "binary": {
+        "logistic_regression": {
+          "training_seconds": 26.567882679999457,
+          "threshold_selection": {
+            "selection_split": "leave-one-source-day-out development predictions",
+            "objective": "maximum F1; lower FPR, higher recall, then proximity to 0.5",
+            "threshold": 0.11499999999999999,
+            "calibration_metrics": {
+              "threshold": 0.11499999999999999,
+              "precision": 0.1639030612244898,
+              "recall": 0.3137973137973138,
+              "f1": 0.21533305404273145,
+              "fpr": 0.13451672481017854,
+              "roc_auc": 0.5393003034086555,
+              "average_precision": 0.13299607680050585,
+              "confusion_matrix": [
+                [
+                  8435,
+                  1311
+                ],
+                [
+                  562,
+                  257
+                ]
+              ],
+              "support": 10565,
+              "positive_support": 819
+            }
+          },
+          "test_at_calibrated_threshold": {
+            "threshold": 0.11499999999999999,
+            "precision": 0.718562874251497,
+            "recall": 0.7058823529411765,
+            "f1": 0.712166172106825,
+            "fpr": 0.1731123388581952,
+            "roc_auc": 0.8027991429843884,
+            "average_precision": 0.7924704421445455,
+            "confusion_matrix": [
+              [
+                1347,
+                282
+              ],
+              [
+                300,
+                720
+              ]
+            ],
+            "support": 2649,
+            "positive_support": 1020
+          },
+          "test_at_fixed_0_5": {
+            "threshold": 0.5,
+            "precision": 0.7689732142857143,
+            "recall": 0.6754901960784314,
+            "f1": 0.7192066805845512,
+            "fpr": 0.1270718232044199,
+            "roc_auc": 0.8027991429843884,
+            "average_precision": 0.7924704421445455,
+            "confusion_matrix": [
+              [
+                1422,
+                207
+              ],
+              [
+                331,
+                689
+              ]
+            ],
+            "support": 2649,
+            "positive_support": 1020
+          }
+        },
+        "kairos_temporal_head": {
+          "training_seconds": 10.789603146000445,
+          "threshold_selection": {
+            "selection_split": "leave-one-source-day-out development predictions",
+            "objective": "maximum F1; lower FPR, higher recall, then proximity to 0.5",
+            "threshold": 0.14671289799688617,
+            "calibration_metrics": {
+              "threshold": 0.14671289799688617,
+              "precision": 0.3806146572104019,
+              "recall": 0.39316239316239315,
+              "f1": 0.3867867867867868,
+              "fpr": 0.05376564744510568,
+              "roc_auc": 0.7049948421280249,
+              "average_precision": 0.2588005258921886,
+              "confusion_matrix": [
+                [
+                  9222,
+                  524
+                ],
+                [
+                  497,
+                  322
+                ]
+              ],
+              "support": 10565,
+              "positive_support": 819
+            }
+          },
+          "test_at_calibrated_threshold": {
+            "threshold": 0.14671289799688617,
+            "precision": 0.7167381974248928,
+            "recall": 0.8186274509803921,
+            "f1": 0.7643020594965675,
+            "fpr": 0.20257826887661143,
+            "roc_auc": 0.8834187941597755,
+            "average_precision": 0.8704877873045741,
+            "confusion_matrix": [
+              [
+                1299,
+                330
+              ],
+              [
+                185,
+                835
+              ]
+            ],
+            "support": 2649,
+            "positive_support": 1020
+          },
+          "test_at_fixed_0_5": {
+            "threshold": 0.5,
+            "precision": 0.9495412844036697,
+            "recall": 0.6088235294117647,
+            "f1": 0.7419354838709677,
+            "fpr": 0.020257826887661142,
+            "roc_auc": 0.8834187941597755,
+            "average_precision": 0.8704877873045741,
+            "confusion_matrix": [
+              [
+                1596,
+                33
+              ],
+              [
+                399,
+                621
+              ]
+            ],
+            "support": 2649,
+            "positive_support": 1020
+          }
+        }
+      },
+      "stage": {
+        "logistic_regression": {
+          "observed_classes": [
+            "INITIAL_ACCESS",
+            "COMMAND_AND_CONTROL",
+            "IMPACT"
+          ],
+          "observed_macro_f1": 0.9948258167756614,
+          "six_class_macro_f1": 0.4974129083878307,
+          "support": 1020,
+          "per_class": [
+            {
+              "class": "RECONNAISSANCE",
+              "support": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            {
+              "class": "INITIAL_ACCESS",
+              "support": 699,
+              "precision": 1.0,
+              "recall": 0.9928469241773963,
+              "f1": 0.9964106245513281
+            },
+            {
+              "class": "LATERAL_MOVEMENT",
+              "support": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            {
+              "class": "COMMAND_AND_CONTROL",
+              "support": 114,
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0
+            },
+            {
+              "class": "EXFILTRATION",
+              "support": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            {
+              "class": "IMPACT",
+              "support": 207,
+              "precision": 0.9764150943396226,
+              "recall": 1.0,
+              "f1": 0.9880668257756563
+            }
+          ],
+          "confusion_matrix": [
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              694,
+              0,
+              0,
+              0,
+              5
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              114,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              207
+            ]
+          ]
+        },
+        "kairos_temporal_head": {
+          "observed_classes": [
+            "INITIAL_ACCESS",
+            "COMMAND_AND_CONTROL",
+            "IMPACT"
+          ],
+          "observed_macro_f1": 1.0,
+          "six_class_macro_f1": 0.5,
+          "support": 1020,
+          "per_class": [
+            {
+              "class": "RECONNAISSANCE",
+              "support": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            {
+              "class": "INITIAL_ACCESS",
+              "support": 699,
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0
+            },
+            {
+              "class": "LATERAL_MOVEMENT",
+              "support": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            {
+              "class": "COMMAND_AND_CONTROL",
+              "support": 114,
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0
+            },
+            {
+              "class": "EXFILTRATION",
+              "support": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            {
+              "class": "IMPACT",
+              "support": 207,
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0
+            }
+          ],
+          "confusion_matrix": [
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              699,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              114,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              207
+            ]
+          ]
+        }
+      },
+      "improvement": {
+        "f1_absolute": 0.05213588738974251,
+        "precision_absolute": -0.0018246768266042546,
+        "recall_absolute": 0.11274509803921562,
+        "fpr_absolute_reduction": -0.029465930018416214,
+        "roc_auc_absolute": 0.08061965117538716,
+        "observed_stage_macro_f1_absolute": 0.005174183224338602
+      }
+    },
+    "3": {
+      "horizon_windows": 3,
+      "horizon_seconds": 30,
+      "history_windows": 6,
+      "history_seconds": 60,
+      "split_report": {
+        "day14.json": {
+          "windows": 3260,
+          "development_target_range": [
+            8,
+            2607
+          ],
+          "test_target_range": [
+            2608,
+            3259
+          ]
+        },
+        "day15.json": {
+          "windows": 3429,
+          "development_target_range": [
+            8,
+            2742
+          ],
+          "test_target_range": [
+            2743,
+            3428
+          ]
+        },
+        "day28.json": {
+          "windows": 3406,
+          "development_target_range": [
+            8,
+            2723
+          ],
+          "test_target_range": [
+            2724,
+            3405
+          ]
+        },
+        "day0302.json": {
+          "windows": 3143,
+          "development_target_range": [
+            8,
+            2513
+          ],
+          "test_target_range": [
+            2514,
+            3142
+          ]
+        }
+      },
+      "sample_counts": {
+        "development": 10557,
+        "test": 2649
+      },
+      "feature_count": 6420,
+      "binary": {
+        "logistic_regression": {
+          "training_seconds": 24.831730157000493,
+          "threshold_selection": {
+            "selection_split": "leave-one-source-day-out development predictions",
+            "objective": "maximum F1; lower FPR, higher recall, then proximity to 0.5",
+            "threshold": 0.29,
+            "calibration_metrics": {
+              "threshold": 0.29,
+              "precision": 0.15705765407554673,
+              "recall": 0.2893772893772894,
+              "f1": 0.2036082474226804,
+              "fpr": 0.13062230437461492,
+              "roc_auc": 0.5347767804637799,
+              "average_precision": 0.12399118114058272,
+              "confusion_matrix": [
+                [
+                  8466,
+                  1272
+                ],
+                [
+                  582,
+                  237
+                ]
+              ],
+              "support": 10557,
+              "positive_support": 819
+            }
+          },
+          "test_at_calibrated_threshold": {
+            "threshold": 0.29,
+            "precision": 0.7234490010515248,
+            "recall": 0.6745098039215687,
+            "f1": 0.6981227803145611,
+            "fpr": 0.1614487415592388,
+            "roc_auc": 0.7838093862468254,
+            "average_precision": 0.7833097097245176,
+            "confusion_matrix": [
+              [
+                1366,
+                263
+              ],
+              [
+                332,
+                688
+              ]
+            ],
+            "support": 2649,
+            "positive_support": 1020
+          },
+          "test_at_fixed_0_5": {
+            "threshold": 0.5,
+            "precision": 0.7497219132369299,
+            "recall": 0.6607843137254902,
+            "f1": 0.7024491922876498,
+            "fpr": 0.13812154696132597,
+            "roc_auc": 0.7838093862468254,
+            "average_precision": 0.7833097097245176,
+            "confusion_matrix": [
+              [
+                1404,
+                225
+              ],
+              [
+                346,
+                674
+              ]
+            ],
+            "support": 2649,
+            "positive_support": 1020
+          }
+        },
+        "kairos_temporal_head": {
+          "training_seconds": 10.293045008000263,
+          "threshold_selection": {
+            "selection_split": "leave-one-source-day-out development predictions",
+            "objective": "maximum F1; lower FPR, higher recall, then proximity to 0.5",
+            "threshold": 0.13,
+            "calibration_metrics": {
+              "threshold": 0.13,
+              "precision": 0.28354430379746837,
+              "recall": 0.41025641025641024,
+              "f1": 0.33532934131736525,
+              "fpr": 0.08718422674060382,
+              "roc_auc": 0.6933375437688438,
+              "average_precision": 0.19853020048302553,
+              "confusion_matrix": [
+                [
+                  8889,
+                  849
+                ],
+                [
+                  483,
+                  336
+                ]
+              ],
+              "support": 10557,
+              "positive_support": 819
+            }
+          },
+          "test_at_calibrated_threshold": {
+            "threshold": 0.13,
+            "precision": 0.6951118475559238,
+            "recall": 0.8225490196078431,
+            "f1": 0.753480017961383,
+            "fpr": 0.22590546347452425,
+            "roc_auc": 0.8753177698335318,
+            "average_precision": 0.8608827537188433,
+            "confusion_matrix": [
+              [
+                1261,
+                368
+              ],
+              [
+                181,
+                839
+              ]
+            ],
+            "support": 2649,
+            "positive_support": 1020
+          },
+          "test_at_fixed_0_5": {
+            "threshold": 0.5,
+            "precision": 0.945226917057903,
+            "recall": 0.592156862745098,
+            "f1": 0.7281494876431586,
+            "fpr": 0.021485573971761818,
+            "roc_auc": 0.8753177698335318,
+            "average_precision": 0.8608827537188433,
+            "confusion_matrix": [
+              [
+                1594,
+                35
+              ],
+              [
+                416,
+                604
+              ]
+            ],
+            "support": 2649,
+            "positive_support": 1020
+          }
+        }
+      },
+      "stage": {
+        "logistic_regression": {
+          "observed_classes": [
+            "INITIAL_ACCESS",
+            "COMMAND_AND_CONTROL",
+            "IMPACT"
+          ],
+          "observed_macro_f1": 0.9958537271834862,
+          "six_class_macro_f1": 0.4979268635917431,
+          "support": 1020,
+          "per_class": [
+            {
+              "class": "RECONNAISSANCE",
+              "support": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            {
+              "class": "INITIAL_ACCESS",
+              "support": 699,
+              "precision": 1.0,
+              "recall": 0.994277539341917,
+              "f1": 0.9971305595408895
+            },
+            {
+              "class": "LATERAL_MOVEMENT",
+              "support": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            {
+              "class": "COMMAND_AND_CONTROL",
+              "support": 114,
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0
+            },
+            {
+              "class": "EXFILTRATION",
+              "support": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            {
+              "class": "IMPACT",
+              "support": 207,
+              "precision": 0.981042654028436,
+              "recall": 1.0,
+              "f1": 0.9904306220095693
+            }
+          ],
+          "confusion_matrix": [
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              695,
+              0,
+              0,
+              0,
+              4
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              114,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              207
+            ]
+          ]
+        },
+        "kairos_temporal_head": {
+          "observed_classes": [
+            "INITIAL_ACCESS",
+            "COMMAND_AND_CONTROL",
+            "IMPACT"
+          ],
+          "observed_macro_f1": 1.0,
+          "six_class_macro_f1": 0.5,
+          "support": 1020,
+          "per_class": [
+            {
+              "class": "RECONNAISSANCE",
+              "support": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            {
+              "class": "INITIAL_ACCESS",
+              "support": 699,
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0
+            },
+            {
+              "class": "LATERAL_MOVEMENT",
+              "support": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            {
+              "class": "COMMAND_AND_CONTROL",
+              "support": 114,
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0
+            },
+            {
+              "class": "EXFILTRATION",
+              "support": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            {
+              "class": "IMPACT",
+              "support": 207,
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0
+            }
+          ],
+          "confusion_matrix": [
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              699,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              114,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              207
+            ]
+          ]
+        }
+      },
+      "improvement": {
+        "f1_absolute": 0.05535723764682188,
+        "precision_absolute": -0.028337153495600953,
+        "recall_absolute": 0.14803921568627443,
+        "fpr_absolute_reduction": -0.06445672191528545,
+        "roc_auc_absolute": 0.09150838358670643,
+        "observed_stage_macro_f1_absolute": 0.004146272816513807
+      }
+    },
+    "6": {
+      "horizon_windows": 6,
+      "horizon_seconds": 60,
+      "history_windows": 6,
+      "history_seconds": 60,
+      "split_report": {
+        "day14.json": {
+          "windows": 3260,
+          "development_target_range": [
+            11,
+            2607
+          ],
+          "test_target_range": [
+            2608,
+            3259
+          ]
+        },
+        "day15.json": {
+          "windows": 3429,
+          "development_target_range": [
+            11,
+            2742
+          ],
+          "test_target_range": [
+            2743,
+            3428
+          ]
+        },
+        "day28.json": {
+          "windows": 3406,
+          "development_target_range": [
+            11,
+            2723
+          ],
+          "test_target_range": [
+            2724,
+            3405
+          ]
+        },
+        "day0302.json": {
+          "windows": 3143,
+          "development_target_range": [
+            11,
+            2513
+          ],
+          "test_target_range": [
+            2514,
+            3142
+          ]
+        }
+      },
+      "sample_counts": {
+        "development": 10545,
+        "test": 2649
+      },
+      "feature_count": 6420,
+      "binary": {
+        "logistic_regression": {
+          "training_seconds": 30.09176893300173,
+          "threshold_selection": {
+            "selection_split": "leave-one-source-day-out development predictions",
+            "objective": "maximum F1; lower FPR, higher recall, then proximity to 0.5",
+            "threshold": 0.014837522153287614,
+            "calibration_metrics": {
+              "threshold": 0.014837522153287614,
+              "precision": 0.12407254740313273,
+              "recall": 0.36752136752136755,
+              "f1": 0.1855161787365177,
+              "fpr": 0.2184865309479745,
+              "roc_auc": 0.5329467582706324,
+              "average_precision": 0.1132653663778197,
+              "confusion_matrix": [
+                [
+                  7601,
+                  2125
+                ],
+                [
+                  518,
+                  301
+                ]
+              ],
+              "support": 10545,
+              "positive_support": 819
+            }
+          },
+          "test_at_calibrated_threshold": {
+            "threshold": 0.014837522153287614,
+            "precision": 0.6331058020477816,
+            "recall": 0.7274509803921568,
+            "f1": 0.677007299270073,
+            "fpr": 0.2639656230816452,
+            "roc_auc": 0.7923488486861902,
+            "average_precision": 0.7789255178756498,
+            "confusion_matrix": [
+              [
+                1199,
+                430
+              ],
+              [
+                278,
+                742
+              ]
+            ],
+            "support": 2649,
+            "positive_support": 1020
+          },
+          "test_at_fixed_0_5": {
+            "threshold": 0.5,
+            "precision": 0.7326086956521739,
+            "recall": 0.6607843137254902,
+            "f1": 0.6948453608247422,
+            "fpr": 0.15101289134438306,
+            "roc_auc": 0.7923488486861902,
+            "average_precision": 0.7789255178756498,
+            "confusion_matrix": [
+              [
+                1383,
+                246
+              ],
+              [
+                346,
+                674
+              ]
+            ],
+            "support": 2649,
+            "positive_support": 1020
+          }
+        },
+        "kairos_temporal_head": {
+          "training_seconds": 9.715074141000514,
+          "threshold_selection": {
+            "selection_split": "leave-one-source-day-out development predictions",
+            "objective": "maximum F1; lower FPR, higher recall, then proximity to 0.5",
+            "threshold": 0.10307732970946837,
+            "calibration_metrics": {
+              "threshold": 0.10307732970946837,
+              "precision": 0.20442571127502634,
+              "recall": 0.47374847374847373,
+              "f1": 0.2856091277143909,
+              "fpr": 0.15525395846185483,
+              "roc_auc": 0.6983784887856449,
+              "average_precision": 0.16931081259235187,
+              "confusion_matrix": [
+                [
+                  8216,
+                  1510
+                ],
+                [
+                  431,
+                  388
+                ]
+              ],
+              "support": 10545,
+              "positive_support": 819
+            }
+          },
+          "test_at_calibrated_threshold": {
+            "threshold": 0.10307732970946837,
+            "precision": 0.6695859872611465,
+            "recall": 0.8245098039215686,
+            "f1": 0.7390158172231986,
+            "fpr": 0.25475751995089013,
+            "roc_auc": 0.8603994390880968,
+            "average_precision": 0.8439804228408045,
+            "confusion_matrix": [
+              [
+                1214,
+                415
+              ],
+              [
+                179,
+                841
+              ]
+            ],
+            "support": 2649,
+            "positive_support": 1020
+          },
+          "test_at_fixed_0_5": {
+            "threshold": 0.5,
+            "precision": 0.9218500797448166,
+            "recall": 0.5666666666666667,
+            "f1": 0.7018822100789314,
+            "fpr": 0.030079803560466543,
+            "roc_auc": 0.8603994390880968,
+            "average_precision": 0.8439804228408045,
+            "confusion_matrix": [
+              [
+                1580,
+                49
+              ],
+              [
+                442,
+                578
+              ]
+            ],
+            "support": 2649,
+            "positive_support": 1020
+          }
+        }
+      },
+      "stage": {
+        "logistic_regression": {
+          "observed_classes": [
+            "INITIAL_ACCESS",
+            "COMMAND_AND_CONTROL",
+            "IMPACT"
+          ],
+          "observed_macro_f1": 0.9989581806107752,
+          "six_class_macro_f1": 0.4994790903053876,
+          "support": 1020,
+          "per_class": [
+            {
+              "class": "RECONNAISSANCE",
+              "support": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            {
+              "class": "INITIAL_ACCESS",
+              "support": 699,
+              "precision": 1.0,
+              "recall": 0.9985693848354793,
+              "f1": 0.9992841803865425
+            },
+            {
+              "class": "LATERAL_MOVEMENT",
+              "support": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            {
+              "class": "COMMAND_AND_CONTROL",
+              "support": 114,
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0
+            },
+            {
+              "class": "EXFILTRATION",
+              "support": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            {
+              "class": "IMPACT",
+              "support": 207,
+              "precision": 0.9951923076923077,
+              "recall": 1.0,
+              "f1": 0.9975903614457832
+            }
+          ],
+          "confusion_matrix": [
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              698,
+              0,
+              0,
+              0,
+              1
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              114,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              207
+            ]
+          ]
+        },
+        "kairos_temporal_head": {
+          "observed_classes": [
+            "INITIAL_ACCESS",
+            "COMMAND_AND_CONTROL",
+            "IMPACT"
+          ],
+          "observed_macro_f1": 1.0,
+          "six_class_macro_f1": 0.5,
+          "support": 1020,
+          "per_class": [
+            {
+              "class": "RECONNAISSANCE",
+              "support": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            {
+              "class": "INITIAL_ACCESS",
+              "support": 699,
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0
+            },
+            {
+              "class": "LATERAL_MOVEMENT",
+              "support": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            {
+              "class": "COMMAND_AND_CONTROL",
+              "support": 114,
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0
+            },
+            {
+              "class": "EXFILTRATION",
+              "support": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            {
+              "class": "IMPACT",
+              "support": 207,
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0
+            }
+          ],
+          "confusion_matrix": [
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              699,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              114,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              207
+            ]
+          ]
+        }
+      },
+      "improvement": {
+        "f1_absolute": 0.062008517953125675,
+        "precision_absolute": 0.036480185213364935,
+        "recall_absolute": 0.09705882352941175,
+        "fpr_absolute_reduction": 0.009208103130755041,
+        "roc_auc_absolute": 0.06805059040190664,
+        "observed_stage_macro_f1_absolute": 0.001041819389224763
+      }
+    }
+  },
+  "estimator": {
+    "binary": "ExtraTreesClassifier(n_estimators=150,max_features=sqrt,min_samples_leaf=2,class_weight=balanced_subsample,random_state=42,n_jobs=-1)",
+    "stage": "ExtraTreesClassifier(same)",
+    "baseline": "LogisticRegression(class_weight=balanced,max_iter=2500)+StandardScaler",
+    "trees": 150,
+    "history_windows": 6,
+    "horizons": [
+      1,
+      3,
+      6
+    ],
+    "seed": 42
+  },
+  "caveats": {
+    "prevalence_shift": "development 819/10545 (7.7%) vs test 1020/2649 (38.5%); thresholds development-calibrated (LR 0.0148, KAIROS 0.1031 at h6), same protocol for both, absolute values prevalence-sensitive",
+    "stage_triviality": "observed-stage 0.999->1.0 reflects near-trivial separability on selected CIC days (future stage ~= current for long blocks), not general stage reasoning",
+    "ctu_horizon_selection": "canonical CTU row is h1/10s (one-window-ahead); h3 F1 -0.1203 and h6 F1 -0.0324 regress and are disclosed here"
+  }
+}

@@ -39,9 +39,9 @@ Raw PCAP / CSV
       v
 [python-ml World Model Service]  (Flask)
       |
-      +-- [GNN Encoder: GraphSAGE/GAT]  -> per-window graph embedding
+      +-- [GNN Encoder: GraphSAGE (2-layer SAGEConv, no GAT variant)]  -> per-window graph embedding
       |
-      +-- [Temporal Dynamics: Transformer / LSTM]  learns P(S_t+1 | S_t)
+      +-- [Temporal Dynamics: causal Transformer (2 layers, 4 heads, no LSTM variant)]  learns P(S_t+1 | S_t)
       |
       +-- [K-Step Autoregressive Rollout]  t+1 .. t+K predicted states
       |

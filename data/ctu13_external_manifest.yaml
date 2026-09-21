@@ -1,0 +1,35 @@
+dataset: CTU-13
+license: CC-BY
+verified_on: 2026-09-20
+label_policy:
+  malicious: Label starts with flow=From-Botnet
+  benign: all other labels, including To-Botnet
+  rationale: official CTU guidance says To-Botnet is not malicious per se
+development:
+  scenario: 6
+  capture_id: CTU-Malware-Capture-Botnet-47
+  malware: DonBot
+  role: training only
+  file: data/raw/ctu13_scenario6/capture20110816.binetflow
+  bytes: 76780048
+  sha256: 801800eeda9a5a44868b1e3e492f93dc6d52b5d14566c1d8431c9e85d0d2adaa
+  url: https://mcfp.felk.cvut.cz/publicDatasets/CTU-Malware-Capture-Botnet-47/detailed-bidirectional-flow-labels/capture20110816.binetflow
+external_validation:
+  scenario: 11
+  capture_id: CTU-Malware-Capture-Botnet-52
+  malware: RBot
+  role: threshold selection and external validation
+  file: data/raw/ctu13_scenario11/capture20110818-2.binetflow
+  bytes: 14596615
+  sha256: cee542d4b5efe4fa1cd59b87ece5aaea9a13d8f0abe56cd07cee31590736428c
+  url: https://mcfp.felk.cvut.cz/publicDatasets/CTU-Malware-Capture-Botnet-52/detailed-bidirectional-flow-labels/capture20110818-2.binetflow
+holdout:
+  scenario: 12
+  capture_id: CTU-Malware-Capture-Botnet-53
+  malware: NSIS.ay
+  role: final zero-shot scoring only
+  excluded_from_fitting_and_selection: true
+  file: data/raw/ctu13_scenario12/capture20110819.binetflow
+  bytes: 44718958
+  sha256: 1098f0addacedc321c7baefad63ef0d9a0f26630d0155087d37e8da770dd9f2e
+  url: https://mcfp.felk.cvut.cz/publicDatasets/CTU-Malware-Capture-Botnet-53/detailed-bidirectional-flow-labels/capture20110819.binetflow

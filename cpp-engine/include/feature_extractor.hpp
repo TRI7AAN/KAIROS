@@ -82,7 +82,10 @@ struct ExtractionBatch {
 };
 
 /**
- * Dependency-free classic-PCAP/PCAPNG reader and per-direction 5-tuple aggregator.
+ * Dependency-free classic-PCAP/PCAPNG reader and per-direction 5-tuple
+ * aggregator. Aggregates are split on fixed 10-second boundaries so a
+ * long-lived connection contributes evidence to every network-state window it
+ * traverses instead of being assigned only to its first packet timestamp.
  *
  * Phase 4 supports Ethernet (including VLAN tags) and raw-IPv4 captures, IPv4,
  * and TCP/UDP/ICMP flows. For header-truncated captures, logical payload size is

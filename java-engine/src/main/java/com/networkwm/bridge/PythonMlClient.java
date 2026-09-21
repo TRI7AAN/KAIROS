@@ -146,11 +146,48 @@ public final class PythonMlClient {
             @JsonProperty("latency_ms") double latencyMs,
             String quality,
             @JsonProperty("quality_detail")
-                    Map<String, Object> qualityDetail) {
+                    Map<String, Object> qualityDetail,
+            @JsonProperty("validated_forecast")
+                    Map<String, Object> validatedForecast,
+            @JsonProperty("stage_coverage")
+                    Map<String, Object> stageCoverage,
+            @JsonProperty("input_projection_detail")
+                    Map<String, Object> inputProjectionDetail) {
+        public PredictionResponse(
+                String artifactVersion,
+                double probability,
+                String predictedStage,
+                List<FeatureContribution> topFeatures,
+                AttentionSummary attentionSummary,
+                Rollout rollout,
+                double latencyMs,
+                String quality,
+                Map<String, Object> qualityDetail) {
+            this(
+                    artifactVersion,
+                    probability,
+                    predictedStage,
+                    topFeatures,
+                    attentionSummary,
+                    rollout,
+                    latencyMs,
+                    quality,
+                    qualityDetail,
+                    Map.of(),
+                    Map.of(),
+                    Map.of());
+        }
+
         public PredictionResponse {
             topFeatures = topFeatures == null ? null : List.copyOf(topFeatures);
             qualityDetail = qualityDetail == null
                     ? Map.of() : Map.copyOf(qualityDetail);
+            validatedForecast = validatedForecast == null
+                    ? Map.of() : Map.copyOf(validatedForecast);
+            stageCoverage = stageCoverage == null
+                    ? Map.of() : Map.copyOf(stageCoverage);
+            inputProjectionDetail = inputProjectionDetail == null
+                    ? Map.of() : Map.copyOf(inputProjectionDetail);
         }
     }
 

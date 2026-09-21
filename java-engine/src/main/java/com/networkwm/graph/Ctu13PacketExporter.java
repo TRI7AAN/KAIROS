@@ -3,7 +3,6 @@ package com.networkwm.graph;
 import com.networkwm.bridge.CppBridge;
 
 import java.nio.file.Path;
-import java.time.Instant;
 import java.util.List;
 
 /** Bounded offline exporter: CTU-13 pcap -&gt; packet-native contract. */
@@ -24,8 +23,8 @@ public final class Ctu13PacketExporter {
         CppBridge.ExtractionBatch batch =
                 new CppBridge().extract(capture, maxPackets, new CppBridge.ScanConfig(20, 0.70));
         GraphContractService.GraphSequence sequence =
-                new Ctu13PacketContractService().fromExtraction(
-                        batch, Instant.parse("2011-08-16T13:31:00Z"), windowSeconds);
+                new Ctu13PacketContractService().fromTimeline(
+                        batch, windowSeconds);
         new GraphContractService().write(destination, sequence);
         System.out.printf(
                 "exported %d packet flows (%d port-scan sources) into %d windows at %s%n",

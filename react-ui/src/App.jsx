@@ -3,6 +3,7 @@ import FlaggedFlowsTable from './components/FlaggedFlowsTable';
 import LiveDashboard from './components/LiveDashboard';
 import NarrativePanel from './components/NarrativePanel';
 import ProbabilityTimeline from './components/ProbabilityTimeline';
+import QualityBadge from './components/QualityBadge';
 import StageAnnotations from './components/StageAnnotations';
 import { explainApiError, forecastTraffic } from './api/client';
 import './styles.css';
@@ -16,9 +17,10 @@ function formatBytes(bytes) {
 }
 
 function validateFile(file) {
-  if (!file) return 'Choose a CICFlowMeter CSV to continue.';
-  if (!file.name.toLowerCase().endsWith('.csv')) {
-    return 'Use a .csv export from CICFlowMeter. Raw PCAP upload is not enabled yet.';
+  if (!file) return 'Choose a CICFlowMeter CSV or packet capture to continue.';
+  const lowerName = file.name.toLowerCase();
+  if (!['.csv', '.pcap', '.pcapng'].some((suffix) => lowerName.endsWith(suffix))) {
+    return 'Use a CICFlowMeter .csv or a .pcap/.pcapng packet capture.';
   }
   if (file.size === 0) return 'The selected file is empty.';
   if (file.size > MAX_FILE_BYTES) return 'The selected file exceeds the 750 MiB limit.';
@@ -87,7 +89,9 @@ function App() {
   };
 
   const prediction = result?.prediction;
-  const highRisk = (prediction?.probability || 0) >= 0.6;
+  const primaryForecast = prediction?.validatedForecast?.primary;
+  const highRisk = Boolean(primaryForecast?.alert);
+  const forecastAvailable = Boolean(prediction?.validatedForecast?.available);
 
   return (
     <div className="app-shell">
@@ -115,8 +119,8 @@ function App() {
             <h2 id="hero-title">See the attack path<br /><em>before impact.</em></h2>
           </div>
           <p className="hero-copy">
-            Upload CICFlowMeter traffic. KAIROS models how the network state may evolve,
-            rolls it forward five windows, and returns an explainable analyst briefing.
+            Upload CICFlowMeter traffic or PCAP. KAIROS returns calibrated 10, 30, and
+            60-second attack forecasts plus a separate world-model transition diagnostic.
           </p>
         </section>
 
@@ -131,7 +135,7 @@ function App() {
           >
             <div className="section-number">01 / INGEST</div>
             <h2>Traffic evidence</h2>
-            <p className="section-intro">One CICFlowMeter CSV, processed locally through the Java and Python services.</p>
+            <p className="section-intro">CSV or PCAP, processed locally through the native, Java, and Python services.</p>
 
             <label
               className={dragOver ? 'drop-zone drag-over' : 'drop-zone'}
@@ -148,19 +152,19 @@ function App() {
             >
               <input
                 type="file"
-                accept=".csv,text/csv"
+                accept=".csv,.pcap,.pcapng,text/csv,application/vnd.tcpdump.pcap"
                 onChange={(event) => chooseFile(event.target.files?.[0])}
                 disabled={busy}
               />
               <span className="upload-glyph" aria-hidden="true">↥</span>
               <strong>{file ? 'Replace traffic file' : 'Choose traffic file'}</strong>
-              <span>or drag a CSV here · maximum 750 MiB</span>
+              <span>or drag CSV/PCAP here · maximum 750 MiB</span>
             </label>
 
             {file && (
               <div className="file-row">
                 <div>
-                  <span className="file-type">CSV</span>
+                  <span className="file-type">{file.name.split('.').pop().toUpperCase()}</span>
                   <div>
                     <strong>{file.name}</strong>
                     <span>{formatBytes(file.size)} · ready for local analysis</span>
@@ -194,7 +198,7 @@ function App() {
                 disabled={!file || busy}
                 aria-busy={busy}
               >
-                {busy ? <><span className="busy-dot" /> Analysing traffic</> : 'Run 5-window forecast'}
+                {busy ? <><span className="busy-dot" /> Analysing traffic</> : 'Run validated forecast'}
               </button>
               {busy ? (
                 <button
@@ -219,7 +223,7 @@ function App() {
             <ol className="route-list">
               <li><span>01</span><div><strong>Window the traffic</strong><p>Aggregate flows into ordered 10-second network states.</p></div></li>
               <li><span>02</span><div><strong>Encode the graph</strong><p>Capture host-flow structure and temporal context.</p></div></li>
-              <li><span>03</span><div><strong>Roll the world forward</strong><p>Simulate T+1 through T+5 without retraining.</p></div></li>
+              <li><span>03</span><div><strong>Forecast 10 / 30 / 60 seconds</strong><p>Apply the calibrated temporal head to backward-only history.</p></div></li>
               <li><span>04</span><div><strong>Explain the warning</strong><p>Rank SHAP evidence and generate a local briefing.</p></div></li>
             </ol>
             <div className="method-proof">
@@ -234,17 +238,23 @@ function App() {
             <div className="result-ribbon" ref={resultRef} tabIndex="-1">
               <div>
                 <p className="eyebrow">Latest inference / {result.artifactVersion}</p>
-                <h2 id="result-title">{highRisk ? 'Escalation threshold crossed' : 'Below escalation threshold'}</h2>
+                <h2 id="result-title">{!forecastAvailable ? "Validated forecast unavailable" : highRisk ? "Escalation threshold crossed" : "Below calibrated threshold"}</h2>
               </div>
               <div className={highRisk ? 'risk-stamp high' : 'risk-stamp low'}>
-                <span>Forecast risk</span>
-                <strong>{((prediction?.probability || 0) * 100).toFixed(1)}%</strong>
+                <span>Validated 60-second risk</span>
+                <strong>{forecastAvailable ? ((primaryForecast?.probability || 0) * 100).toFixed(1) + "%" : "N/A"}</strong>
               </div>
               <dl className="result-facts">
-                <div><dt>Next stage</dt><dd>{(prediction?.predictedStage || 'unknown').replaceAll('_', ' ')}</dd></div>
-                <div><dt>Peak rollout</dt><dd>{((prediction?.rollout?.maxProbability || 0) * 100).toFixed(1)}%</dd></div>
+                <div><dt>Conditional stage</dt><dd>{(primaryForecast?.predictedStageIfAttack || "unknown").replaceAll("_", " ")}</dd></div>
+                <div><dt>Calibrated threshold</dt><dd>{forecastAvailable ? ((primaryForecast?.threshold || 0) * 100).toFixed(1) + "%" : "N/A"}</dd></div>
                 <div><dt>Inference</dt><dd>{Math.round(prediction?.latencyMs || 0)} ms</dd></div>
               </dl>
+            </div>
+            <div className={"quality-callout quality-" + (prediction?.quality || "ok")} role="status">
+              <QualityBadge quality={prediction?.quality} detail={prediction?.qualityDetail} />
+              <p>{prediction?.quality === "ok"
+                ? "Input distribution is within the configured quality guard; analyst verification still applies."
+                : "Input quality is outside the trusted training range. Treat every forecast as advisory and verify against packet evidence."}</p>
             </div>
             <div className="result-grid">
               <ProbabilityTimeline prediction={prediction} />

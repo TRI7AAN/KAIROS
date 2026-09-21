@@ -95,9 +95,11 @@
   (`results/live_capture_performance.md`) — 55/204/785 pps zero-loss;
   662,520-packet burst, 0 drops; RSS flat at 4116 kB; backpressure verified.
 - **78 (demo scenario + docs):** NOT STARTED.
-- **58-60 (CTU-13 zero-shot):** NOT STARTED. Scenario 6 (DonBot) remains
-  packet-extractor development data only, explicitly excluded from zero-shot
-  scoring; the generalization test MUST use a different CTU-13 scenario.
+- **58-60 (CTU-13 adaptation/zero-shot):** COMPLETE. Scenario 6 (DonBot) is
+  development, Scenario 11 (RBot) is external validation, and Scenario 12
+  (NSIS.ay) is the untouched holdout. At 10s KAIROS improves holdout F1
+  0.3683 -> 0.4746 and recall 0.5816 -> 0.8571, while FPR worsens
+  0.7410 -> 0.8249; the domain-shift gap remains explicit.
 - **63 (retraining attempt, Option A):** genuine attempt, honestly negative.
   Diagnosis: validation loss anti-correlates with F1 (dynamics-MSE ~95% of
   joint loss); added dropout/weight-decay/cosine and aggressive loss
@@ -108,7 +110,8 @@
   REGRESSED, so the canonical checkpoint was KEPT (pre-attempt archive:
   `world_model_v1_pretune_baseline_loss.pt`). The temporal architecture's
   value proposition rests on explainability/stage-mapping/rollout, not raw
-  F1 superiority over the non-temporal baseline (0.7097).
+  legacy next-window-head superiority. The separate deployed ExtraTrees 60s temporal forecasting component now beats
+  same-feature LR on F1, precision, recall, FPR, and ROC-AUC.
 
 ## Real-data evidence
 
@@ -122,24 +125,46 @@
 
 The JNI round-trip test passes without skips (surefire supplies the native
 library). Native extractor tests, all Java unit tests, and all Python tests pass.
-Current totals: Java 47 tests / 0 failures (1 pre-existing skip),
-Python 15 (12 static + 3 drift), C++ ctest 3/3.
+Current totals: Java 60 tests / 0 failures (1 pre-existing skip
+`RealCicCsvIntegrationTest`), Python 35 (unittest discover) + 3 PS-alignment
+guards, C++ ctest 3/3.
 
-## Current measured results (live-verified, in-distribution PRIMARY split)
+## Current measured results (task-aligned PRIMARY benchmark v2)
 
-PRIMARY — in-distribution per-day final-20%-time holdout (joined across all
-4 days; every val stage seen in training):
+PRIMARY — CIC per-day final-20% untouched test, 60s future-window task
+(`results/ps_aligned_benchmark.json` h6, `results/benchmark_table.json:v2`):
+same backward-only temporal features, same future target, same split and
+leave-one-source-day-out calibration for both models (10545 dev / 2649 test,
+6420 features, ExtraTrees 150 trees, seed 42).
 
-- World model (`world_model_v1.pt`, phase38-stage, GNN, K=3, threshold 0.5):
-  infiltration F1 **0.3454**, precision **0.50**, recall **0.2638**, FPR
-  **0.1639**, AUC-ROC 0.581. Stage six-class macro-F1 **0.244**
-  (IA 0.5612 / C2 0.4238 / Impact 0.4819; Recon/Lateral/Exfil 0.0 with zero
-  support in the selected CIC days).
-- Frozen logistic baseline re-evaluated on the IDENTICAL in-dist windows
-  (`results/baseline_metrics_indist.json`): binary F1 **0.6745**, precision
-  **0.6215**, recall **0.7374**, FPR **0.2793**, stage macro-F1 **0.4828**.
-  The world model currently TRAILS the baseline on in-dist F1 — reported
-  exactly as measured, not hidden.
+- Same-feature logistic baseline: F1 **0.6770**, precision **0.6331**, recall
+  **0.7275**, FPR **0.2640**, ROC-AUC **0.7923**, observed-stage macro **0.9990**.
+- Separate ExtraTrees temporal forecasting component (deployed `ps_aligned_temporal_forecaster.joblib`):
+  F1 **0.7390**, precision **0.6696**, recall **0.8245**, FPR **0.2548**,
+  ROC-AUC **0.8604**, observed-stage macro **1.0000**.
+  Improvement: **+0.0620 F1, +0.0365 P, +0.0971 R, −0.0092 FPR, +0.0681 AUC**.
+- Legacy GNN-Transformer transition core (retained for rollout/attention, not
+  the headline comparison): next-window F1 **0.3545**, P 0.5027, R 0.2738,
+  FPR 0.1694, AUC 0.5813, threshold 0.5 (`results/phase32_completed.json`).
+  The old LR (current-window) vs transition-head (future-window) comparison
+  was apples-to-oranges and is superseded.
+- Caveats (do not omit in demo): thresholds are development-calibrated
+  (LR 0.0148, KAIROS 0.1031 at h6) under prevalence shift dev 7.7%
+  (819/10545) vs test 38.5% (1020/2649) — fair (same protocol) but absolute
+  values are prevalence-sensitive; stage 0.999→1.0 reflects near-trivial
+  separability on selected CIC days (future stage ≈ current for long blocks),
+  not general stage reasoning; `trees:150` is recorded in weights artifact
+  and `python-ml/weights/README.md`.
+
+EXTERNAL — CTU-13 S6 develop / S11 validate / S12 untouched holdout, 10s
+(`results/ctu13_unseen_scenario12.json` h1; 770 dev / 92 val / 862 refit /
+613 holdout): LR F1 **0.3683** P 0.2695 R 0.5816 FPR 0.7410 AUC 0.3136;
+KAIROS F1 **0.4746** P 0.3281 R 0.8571 FPR 0.8249 AUC 0.4579.
+Limited generalization: F1/P/R improve but FPR worsens +0.0839 and ranking
+remains weak (<0.5). Longer horizons regress and are disclosed here, not
+hidden: h3 F1 −0.1203 (LR 0.4960 vs KAIROS 0.3756), h6 F1 −0.0324
+(LR 0.4840 vs KAIROS 0.4516). Official CTU labels carry no MITRE stages,
+so none are fabricated.
 
 SECONDARY — whole-day cross-generalization stress test (train
 day14+day15+day28, validate whole day0302, unseen C2 dynamics):
@@ -162,13 +187,27 @@ passes the forward + K=5 rollout load test (`LOAD TEST PASS`).
 
 ## Known limitations and next phase
 
-The official processed CIC CSVs omit endpoint IPs. They therefore exercise
-vector mode through the explicit `__network__` fallback, while real host
-topology is available for PCAP/enriched-flow input. The selected days contain
-only three of six stage classes; unsupported stages are not fabricated.
-CTU-13 Phases 58-60 must use a scenario OTHER than Scenario 6 (DonBot),
-which is reserved for packet-extractor development and excluded from
-zero-shot scoring. See `results/benchmark_table.csv` for the full
+Endpoint IPs are preserved as graph topology IDs whenever present
+(`IngestionService:sourceIp/destinationIp` → `GraphConstructionService:endpoints`,
+packet IPs preferred when flow IPs are blank; ports/protocol preserved as edge
+features). Raw IPs are excluded from numeric ML features by design (to avoid
+memorizing addresses). The official processed CIC CSVs omit endpoint IPs, so
+they exercise vector mode through the explicit `__network__` fallback, while
+real host topology is available for PCAP/enriched-flow input. PS flow-level
+coverage: ports/protocol/bytes/packets/duration/IAT/bidir and SYN/ACK counts
+preserved; FIN/RST/PSH/URG survive as generic numeric edge summaries.
+PS packet-level coverage (C++): TTL mean/variance, TCP window trend, frag and
+retransmission counts, payload mean/std/skew, sequential vs randomized
+port-scan signatures.
+PS MITRE mapping: the 6-class schema retains IA/C2/IMPACT with real support;
+RECONNAISSANCE, LATERAL_MOVEMENT and EXFILTRATION have zero support in the
+selected CIC days (F1 0.0) and are masked, never fabricated — so only 2/5
+PS-mandated stages (IA, C2) are demonstrable plus IMPACT as CIC-extra.
+Unsupported stages are not fabricated.
+CTU-13 Phases 58-60 use Scenario 6 for development, Scenario 11 for
+external validation/threshold selection, and official Scenario 12 (NSIS.ay)
+as the untouched final holdout; no Scenario 12 row influences fitting,
+preprocessing, model choice, or threshold selection. See `results/benchmark_table.csv` for the full
 model-vs-baseline comparison.
 Live-tier limits: verified on loopback only (non-loopback behavior
 unmeasured); drift guard flags 9/400 real day0302 windows as

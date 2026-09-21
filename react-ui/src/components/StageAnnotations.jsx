@@ -10,31 +10,47 @@ const LABELS = {
   IMPACT: 'Impact',
 };
 
+function label(stage) {
+  return LABELS[stage] || stage?.replaceAll('_', ' ') || 'Unknown';
+}
+
 function StageAnnotations({ prediction }) {
-  const predicted = prediction?.predictedStage || 'NONE';
-  const stages = prediction?.rollout?.predictedStages || [];
+  const horizons = prediction?.validatedForecast?.horizons || [];
+  const coverage = prediction?.stageCoverage || {};
+  const evidence = prediction?.inputProjectionDetail;
 
   return (
     <section className="panel stage-panel" aria-labelledby="stage-title">
       <div className="panel-heading">
         <div>
-          <p className="eyebrow">MITRE-aligned progression</p>
-          <h2 id="stage-title">Stage outlook</h2>
+          <p className="eyebrow">Validated conditional stage outlook</p>
+          <h2 id="stage-title">Stage coverage</h2>
         </div>
       </div>
       <ol className="stage-track">
-        <li>
-          <span className="stage-step">Now</span>
-          <strong>{LABELS[predicted] || predicted}</strong>
-        </li>
-        {stages.map((stage, index) => (
-          <li key={`${stage}-${index}`}>
-            <span className="stage-step">T+{index + 1}</span>
-            <strong>{LABELS[stage] || stage}</strong>
+        {horizons.map((item) => (
+          <li key={item.horizonSeconds}>
+            <span className="stage-step">{Math.round(item.horizonSeconds)}s</span>
+            <strong>{label(item.predictedStageIfAttack)}</strong>
           </li>
         ))}
       </ol>
-      <p className="panel-note">Stage labels are model classifications and require analyst verification.</p>
+      <dl className="coverage-list">
+        <div>
+          <dt>Supported by training</dt>
+          <dd>{(coverage.supported || []).map(label).join(', ') || 'Not reported'}</dd>
+        </div>
+        <div>
+          <dt>Not supported</dt>
+          <dd>{(coverage.unsupported || []).map(label).join(', ') || 'Not reported'}</dd>
+        </div>
+      </dl>
+      <p className="panel-note">{coverage.policy || 'Stage labels require analyst verification.'}</p>
+      {evidence && (
+        <p className="packet-evidence-note">
+          Packet evidence retained · {evidence.windows?.length || 0} windows · {evidence.preserved_empty_windows || 0} empty windows preserved.
+        </p>
+      )}
     </section>
   );
 }

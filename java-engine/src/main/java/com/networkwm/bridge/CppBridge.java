@@ -18,6 +18,9 @@ public final class CppBridge {
     static {
         String explicitLibrary = System.getProperty("kairos.native.library");
         if (explicitLibrary == null || explicitLibrary.isBlank()) {
+            explicitLibrary = System.getenv("KAIROS_NATIVE_LIBRARY");
+        }
+        if (explicitLibrary == null || explicitLibrary.isBlank()) {
             System.loadLibrary("kairos_native");
         } else {
             System.load(Path.of(explicitLibrary).toAbsolutePath().normalize().toString());

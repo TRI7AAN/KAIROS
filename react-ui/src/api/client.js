@@ -1,9 +1,30 @@
 import axios from 'axios';
 
+function resolveApiBase() {
+  const configured = process.env.REACT_APP_API_URL;
+  if (configured) return configured.replace(/\/$/, '');
+  if (typeof window !== 'undefined' && window.location?.hostname) {
+    const { hostname, protocol } = window.location;
+    if (hostname && protocol?.startsWith('http')) return `http://${hostname}:8080`;
+  }
+  return 'http://127.0.0.1:8080';
+}
+
 const api = axios.create({
-  baseURL: process.env.REACT_APP_API_URL || 'http://127.0.0.1:8080',
+  baseURL: resolveApiBase(),
   timeout: 120000,
 });
+
+function normalizeHorizon(item = {}) {
+  return {
+    horizonWindows: item.horizon_windows || 0,
+    horizonSeconds: item.horizon_seconds || 0,
+    probability: item.probability || 0,
+    threshold: item.threshold || 0,
+    alert: Boolean(item.alert),
+    predictedStageIfAttack: item.predicted_stage_if_attack || 'NONE',
+  };
+}
 
 export async function forecastTraffic(file, rolloutSteps = 5, signal) {
   const form = new FormData();
@@ -13,6 +34,8 @@ export async function forecastTraffic(file, rolloutSteps = 5, signal) {
   const payload = response.data;
   const raw = payload.prediction || {};
   const rawRollout = raw.rollout || {};
+  const rawValidated = raw.validated_forecast || {};
+  const horizons = (rawValidated.horizons || []).map(normalizeHorizon);
   return {
     ...payload,
     prediction: {
@@ -38,6 +61,22 @@ export async function forecastTraffic(file, rolloutSteps = 5, signal) {
         predictedStages: rawRollout.predicted_stages || [],
         maxProbability: rawRollout.max_probability || 0,
       },
+      validatedForecast: {
+        available: Boolean(rawValidated.available),
+        artifactVersion: rawValidated.artifact_version,
+        reason: rawValidated.reason,
+        detail: rawValidated.detail,
+        requiredHistoryWindows: rawValidated.required_history_windows || 0,
+        receivedHistoryWindows: rawValidated.received_history_windows || 0,
+        horizons,
+        primary: rawValidated.primary ? normalizeHorizon(rawValidated.primary) : null,
+      },
+      stageCoverage: {
+        supported: raw.stage_coverage?.supported || [],
+        unsupported: raw.stage_coverage?.unsupported_no_training_support || [],
+        policy: raw.stage_coverage?.policy || '',
+      },
+      inputProjectionDetail: raw.input_projection_detail || null,
       latencyMs: raw.latency_ms || 0,
     },
   };
@@ -68,7 +107,7 @@ export async function liveSessionStatus(sessionId) {
 }
 
 export function openLiveEvents(sessionId, handlers) {
-  const base = (process.env.REACT_APP_API_URL || 'http://127.0.0.1:8080').replace(/\/$/, '');
+  const base = resolveApiBase();
   const source = new EventSource(`${base}/live/sessions/${encodeURIComponent(sessionId)}/events`);
   const onState = (event) => handlers.onState?.(JSON.parse(event.data));
   const onCounter = (event) => handlers.onCounter?.(JSON.parse(event.data));

@@ -101,9 +101,9 @@ class ForecastUploadTest {
     }
 
     @Test
-    void uploadRejectsNonCsv() throws Exception {
+    void uploadRejectsUnsupportedExtension() throws Exception {
         MockMultipartFile file = new MockMultipartFile(
-                "file", "capture.pcap", "application/octet-stream",
+                "file", "capture.txt", "application/octet-stream",
                 new byte[]{1, 2, 3});
 
         mvc.perform(multipart("/forecast/upload")

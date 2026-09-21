@@ -19,6 +19,7 @@ namespace {
 constexpr std::uint32_t kEthernetLinkType = 1;
 constexpr std::uint32_t kRawIpv4LinkType = 101;
 constexpr std::uint32_t kMaxCapturedPacketBytes = 64U * 1024U * 1024U;
+constexpr std::uint64_t kAggregationWindowMicros = 10'000'000U;
 
 std::uint16_t read_be16(const std::uint8_t* bytes) {
     return static_cast<std::uint16_t>((bytes[0] << 8U) | bytes[1]);
@@ -70,6 +71,31 @@ struct FragmentKey {
                         other.identification);
     }
 };
+
+struct WindowedFlowKey {
+    FlowKey flow;
+    std::uint64_t window_start_epoch_micros{};
+
+    bool operator<(const WindowedFlowKey& other) const noexcept {
+        if (flow < other.flow) {
+            return true;
+        }
+        if (other.flow < flow) {
+            return false;
+        }
+        return window_start_epoch_micros < other.window_start_epoch_micros;
+    }
+};
+
+WindowedFlowKey windowed_key(
+    FlowKey flow,
+    std::uint64_t timestamp_micros) {
+    return {
+        std::move(flow),
+        timestamp_micros / kAggregationWindowMicros
+            * kAggregationWindowMicros,
+    };
+}
 
 struct RunningAggregate {
     std::uint64_t packet_count{};
@@ -300,7 +326,7 @@ struct FeatureExtractor::Impl {
     std::string error;
     std::vector<std::uint32_t> interface_link_types;
     std::vector<std::uint32_t> interface_snap_lengths;
-    std::map<FragmentKey, FlowKey> fragment_flows;
+    std::map<FragmentKey, WindowedFlowKey> fragment_flows;
 
     bool read_next_pcapng_packet(std::vector<std::uint8_t>& packet,
                                  std::uint32_t& original_size,
@@ -487,7 +513,7 @@ struct FeatureExtractor::Impl {
                       std::uint32_t packet_link_type,
                       bool capture_truncated,
                       std::uint64_t timestamp_micros,
-                      std::map<FlowKey, RunningAggregate>& flows,
+                      std::map<WindowedFlowKey, RunningAggregate>& flows,
                       PortScanDetector& scan_detector) {
         std::size_t ip_offset = 0;
         if (packet_link_type == kEthernetLinkType) {
@@ -559,8 +585,9 @@ struct FeatureExtractor::Impl {
             if (existing_flow == fragment_flows.end()) {
                 return false;
             }
-            key = existing_flow->second;
-            flows[key].add(ip[8], true, payload_size, capture_truncated,
+            const WindowedFlowKey aggregate_key = existing_flow->second;
+            flows[aggregate_key].add(
+                           ip[8], true, payload_size, capture_truncated,
                            false, 0U, 0U, 0U, timestamp_micros);
             if (!more_fragments) {
                 fragment_flows.erase(existing_flow);
@@ -620,9 +647,10 @@ struct FeatureExtractor::Impl {
         }
 
         if (more_fragments) {
-            fragment_flows[fragment_key] = key;
+            fragment_flows[fragment_key] = windowed_key(key, timestamp_micros);
         }
-        flows[key].add(ip[8], fragmented, payload_size, capture_truncated,
+        flows[windowed_key(key, timestamp_micros)].add(
+                       ip[8], fragmented, payload_size, capture_truncated,
                        is_tcp, tcp_window, tcp_sequence, sequence_span,
                        timestamp_micros);
         scan_detector.observe(key);
@@ -722,7 +750,7 @@ ExtractionBatch FeatureExtractor::extract_next_batch_analysis(
         return batch;
     }
 
-    std::map<FlowKey, RunningAggregate> flows;
+    std::map<WindowedFlowKey, RunningAggregate> flows;
     PortScanDetector scan_detector(scan_config);
     std::size_t records_read = 0U;
     while (records_read < max_packets) {
@@ -787,7 +815,7 @@ ExtractionBatch FeatureExtractor::extract_next_batch_analysis(
 
     batch.flows.reserve(flows.size());
     for (const auto& entry : flows) {
-        batch.flows.push_back(finish(entry.first, entry.second));
+        batch.flows.push_back(finish(entry.first.flow, entry.second));
     }
     batch.port_scans = scan_detector.results();
     return batch;

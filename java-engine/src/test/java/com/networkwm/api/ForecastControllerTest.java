@@ -118,7 +118,7 @@ class ForecastControllerTest {
     }
 
     @Test
-    void pcapUploadIsRejectedUntilPhase58() throws Exception {
+    void unsupportedUploadExtensionIsRejected() throws Exception {
         HttpServer python = stubPython(200, VALID_PREDICTION);
         try {
             ForecastController controller = controller(python);
@@ -126,7 +126,7 @@ class ForecastControllerTest {
             ResponseStatusException error = assertThrows(
                     ResponseStatusException.class,
                     () -> controller.forecastUpload(
-                            new BytesMultipartFile("capture.pcap", new byte[]{1}), 3));
+                            new BytesMultipartFile("capture.txt", new byte[]{1}), 3));
 
             assertEquals(HttpStatus.BAD_REQUEST, error.getStatusCode());
         } finally {

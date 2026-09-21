@@ -21,8 +21,9 @@ evaluation, and the `winning_checkpoint_source` that was promoted to
 Pre-Phase-63 archive: `world_model_v1_pretune_baseline_loss.pt` is the
 Phase 38-finetuned checkpoint BEFORE the Phase 63 retraining attempt, kept as
 the documented "before" comparison point. Metrics at archive time
-(in-distribution split, threshold 0.5): infiltration F1 0.3454, precision
-0.50, recall 0.2638, FPR 0.1639, val_loss 3.915 (best-loss epoch 1 of 5).
+(legacy next-window head, in-distribution split, threshold 0.5):
+infiltration F1 0.3545, precision 0.5027, recall 0.2738, FPR 0.1694,
+val_loss 3.915 (best-loss epoch 1 of 5; `results/phase32_completed.json`).
 Selected by validation LOSS, which the Phase 63 diagnosis showed
 anti-correlates with F1 on this task (flat encoder: lower loss 1.67 yet F1
 0.0). Do not silently discard; compare every future checkpoint against it.
@@ -43,3 +44,21 @@ Reproduce from scratch:
    python-ml/training/load_test_checkpoint.py`
 5. Baseline: `PYTHONPATH=python-ml python-ml/venv/bin/python
    python-ml/baseline/run_baseline.py data/processed/graph_contracts/*.json`
+
+
+PS-aligned deployed forecast head:
+`ps_aligned_temporal_forecaster.joblib` (~35MB) is committed and served by
+`PredictionService`. Regenerate it with:
+
+```bash
+PYTHONPATH=python-ml .venv/bin/python   python-ml/training/run_ps_aligned_benchmark.py --trees 150
+PYTHONPATH=python-ml .venv/bin/python   python-ml/training/generate_benchmark_table.py
+```
+
+The CTU Scenario-6-to-11 model is an external stress-test intermediate and is
+not deployed. Regenerate it after `scripts/download_ctu13_flows.sh` with
+`python-ml/training/run_ctu13_unseen.py --trees 200`.
+
+Temporal-vs-static ablation (`results/temporal_ablation.json`, proves history
+helps with identical learner): same ExtraTrees, same split/target, fixed 0.5 —
+history-6 F1 0.6871/AUC 0.8594 vs current-only 0.6790/0.8466.

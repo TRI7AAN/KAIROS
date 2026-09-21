@@ -66,7 +66,12 @@ fi
 echo "PASS: offline path makes no external calls (Gemini isolated to GeminiNarrativeService)"
 
 echo "-- React build --"
-(cd react-ui && npm run build 2>&1 | tail -3)
+NODE_BIN="$PWD/.tools/node-v24.21.0-linux-x64/bin"
+if [ ! -x "$NODE_BIN/npm" ]; then
+  echo "FAIL: bundled Linux npm missing at $NODE_BIN/npm"
+  exit 1
+fi
+(cd react-ui && PATH="$NODE_BIN:$PATH" "$NODE_BIN/npm" run build 2>&1 | tail -3)
 test -f react-ui/build/sample-attack.csv || { echo "FAIL: sample missing from build"; exit 1; }
 echo "PASS: sample-attack.csv bundled"
 

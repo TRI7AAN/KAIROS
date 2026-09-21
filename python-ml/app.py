@@ -30,12 +30,23 @@ from live_drift import assess_quality
 from phase32_common import CLASS_NAMES, make_model
 from pipeline.packet_projection import project_packet_contract
 from pipeline.graph_builder import GraphContractError, load_graph_sequence
+from pipeline.temporal_forecaster import (
+    TemporalForecasterError,
+    load_temporal_forecaster,
+    predict_temporal_forecasts,
+)
 
 DEFAULT_CHECKPOINT = REPO_ROOT / "python-ml" / "weights" / "world_model_v1.pt"
 DEFAULT_SURROGATE = REPO_ROOT / "python-ml" / "weights" / "shap_surrogate_v1.joblib"
+DEFAULT_TEMPORAL_FORECASTER = (
+    REPO_ROOT / "python-ml" / "weights"
+    / "ps_aligned_temporal_forecaster.joblib"
+)
 MAX_CONTEXT_WINDOWS = 512
 ATTENTION_CONTEXT_WINDOWS = 64
 MAX_ROLLOUT_STEPS = 10
+SUPPORTED_STAGE_INDICES = (1, 3, 5)
+UNSUPPORTED_STAGE_INDICES = (0, 2, 4)
 
 
 class SurrogateUnavailableError(RuntimeError):
@@ -49,6 +60,7 @@ class PredictionService:
         self,
         checkpoint_path: str | Path = DEFAULT_CHECKPOINT,
         surrogate_path: str | Path = DEFAULT_SURROGATE,
+        temporal_forecaster_path: str | Path = DEFAULT_TEMPORAL_FORECASTER,
     ) -> None:
         self.checkpoint_path = Path(checkpoint_path)
         try:
@@ -62,6 +74,14 @@ class PredictionService:
         self._checkpoint = torch.load(
             self.checkpoint_path, map_location="cpu", weights_only=False)
         self._models: dict[tuple[int, int], torch.nn.Module] = {}
+        self.temporal_forecaster_error: str | None = None
+        try:
+            self.temporal_forecaster = load_temporal_forecaster(
+                temporal_forecaster_path
+            )
+        except TemporalForecasterError as error:
+            self.temporal_forecaster = None
+            self.temporal_forecaster_error = str(error)
 
     def _model(self, node_dim: int, edge_dim: int):
         dimensions = (node_dim, edge_dim)
@@ -86,9 +106,41 @@ class PredictionService:
 
         contract, projected_packet_input = project_packet_contract(
             contract, self.surrogate_feature_names)
+        input_projection_detail = contract.get("inputProjectionDetail", {})
         sequence = load_graph_sequence(contract)
         if not sequence.graphs:
             raise GraphContractError("at least one graph window is required")
+        if self.temporal_forecaster is None:
+            validated_forecast = {
+                "available": False,
+                "reason": "artifact_unavailable",
+                "detail": self.temporal_forecaster_error,
+                "horizons": [],
+            }
+        else:
+            try:
+                validated_forecast = predict_temporal_forecasts(
+                    sequence, self.temporal_forecaster
+                )
+            except TemporalForecasterError as error:
+                validated_forecast = {
+                    "available": False,
+                    "reason": "incompatible_input",
+                    "detail": str(error),
+                    "horizons": [],
+                }
+        for forecast in validated_forecast["horizons"]:
+            stage_index = forecast.pop("predicted_stage_index")
+            forecast["predicted_stage_if_attack"] = CLASS_NAMES[stage_index]
+        if validated_forecast["horizons"]:
+            primary = next(
+                (
+                    item for item in validated_forecast["horizons"]
+                    if item["horizon_windows"] == 6
+                ),
+                validated_forecast["horizons"][-1],
+            )
+            validated_forecast["primary"] = dict(primary)
         graphs = list(sequence.graphs[-MAX_CONTEXT_WINDOWS:])
         names = (
             flattened_feature_names(
@@ -109,8 +161,8 @@ class PredictionService:
             context_probabilities = (
                 teacher_outputs["infiltration_probability"][0].cpu().tolist())
             immediate_probability = float(context_probabilities[-1])
-            immediate_stage_index = int(
-                teacher_outputs["stage_probability"][0, -1].argmax().item())
+            immediate_stage_index = _supported_stage_index(
+                teacher_outputs["stage_probability"][0, -1])
 
             future_states = model.dynamics.rollout(states, rollout_steps)
             future_outputs = model.heads(future_states)
@@ -119,8 +171,8 @@ class PredictionService:
                 future_outputs["infiltration_probability"][0].cpu().tolist()
             ]
             rollout_stages = [
-                CLASS_NAMES[int(index)] for index in
-                future_outputs["stage_probability"][0].argmax(dim=-1).cpu().tolist()
+                CLASS_NAMES[_supported_stage_index(probabilities)]
+                for probabilities in future_outputs["stage_probability"][0]
             ]
 
             attention_states = states[:, -ATTENTION_CONTEXT_WINDOWS:]
@@ -189,9 +241,30 @@ class PredictionService:
             "model_artifact": self._checkpoint.get(
                 "artifact_version", "unknown"),
             "input_projection": "packet-to-cic-v1" if projected_packet_input else "none",
+            "input_projection_detail": input_projection_detail,
+            "validated_forecast": validated_forecast,
+            "stage_coverage": {
+                "supported": [
+                    CLASS_NAMES[index] for index in SUPPORTED_STAGE_INDICES
+                ],
+                "unsupported_no_training_support": [
+                    CLASS_NAMES[index] for index in UNSUPPORTED_STAGE_INDICES
+                ],
+                "policy": "unsupported classes are masked, not fabricated",
+            },
             "latency_ms": (time.perf_counter() - started) * 1000.0,
         })
         return response
+
+
+def _supported_stage_index(probabilities: torch.Tensor) -> int:
+    supported = torch.tensor(
+        SUPPORTED_STAGE_INDICES,
+        dtype=torch.long,
+        device=probabilities.device,
+    )
+    local_index = int(probabilities.index_select(0, supported).argmax().item())
+    return SUPPORTED_STAGE_INDICES[local_index]
 
 
 def create_app(prediction_service: PredictionService | None = None,

@@ -40,6 +40,69 @@ public final class Ctu13PacketContractService {
         this.contract = Objects.requireNonNull(contract, "contract");
     }
 
+    /**
+     * Split a capture-wide extraction into gap-preserving state windows.
+     *
+     * Long-lived 5-tuples are already divided by the native extractor. Keeping
+     * timeline construction here guarantees that uploads and training exports
+     * use the identical bucket and empty-window semantics.
+     */
+    public GraphSequence fromTimeline(
+            CppBridge.ExtractionBatch batch,
+            long windowSeconds) {
+        Objects.requireNonNull(batch, "batch");
+        if (windowSeconds <= 0L) {
+            throw new IllegalArgumentException("windowSeconds must be positive");
+        }
+        List<CppBridge.FlowFeatures> allFlows =
+                batch.flows() == null ? List.of() : batch.flows();
+        if (allFlows.isEmpty()) {
+            throw new IllegalArgumentException(
+                    "capture contains no supported IPv4 TCP/UDP/ICMP flows");
+        }
+
+        TreeMap<Long, List<CppBridge.FlowFeatures>> byWindow = new TreeMap<>();
+        for (CppBridge.FlowFeatures flow : allFlows) {
+            long epochSeconds = Math.floorDiv(
+                    flow.firstSeenEpochMicros(), 1_000_000L);
+            long bucket = Math.floorDiv(epochSeconds, windowSeconds)
+                    * windowSeconds;
+            byWindow.computeIfAbsent(
+                    bucket, ignored -> new ArrayList<>()).add(flow);
+        }
+
+        List<GraphSnapshot> windows = new ArrayList<>();
+        GraphSequence schema = null;
+        for (long bucket = byWindow.firstKey();
+                bucket <= byWindow.lastKey(); bucket += windowSeconds) {
+            List<CppBridge.FlowFeatures> flows =
+                    byWindow.getOrDefault(bucket, List.of());
+            TreeSet<String> sources = new TreeSet<>();
+            for (CppBridge.FlowFeatures flow : flows) {
+                sources.add(flow.sourceIp());
+            }
+            List<CppBridge.PortScanFeatures> scans =
+                    (batch.portScans() == null ? List
+                            .<CppBridge.PortScanFeatures>of()
+                            : batch.portScans()).stream()
+                    .filter(scan -> sources.contains(scan.sourceIp()))
+                    .toList();
+            GraphSequence one = fromExtraction(
+                    new CppBridge.ExtractionBatch(flows, scans),
+                    Instant.ofEpochSecond(bucket),
+                    windowSeconds);
+            if (schema == null) {
+                schema = one;
+            }
+            windows.addAll(one.windows());
+        }
+        return new GraphSequence(
+                schema.contractVersion(),
+                schema.nodeFeatureNames(),
+                schema.edgeFeatureNames(),
+                windows);
+    }
+
     public GraphSequence fromExtraction(
             CppBridge.ExtractionBatch batch,
             Instant windowStart,
@@ -55,6 +118,8 @@ public final class Ctu13PacketContractService {
         List<GraphEdge> edges = new ArrayList<>();
         List<CppBridge.FlowFeatures> flows =
                 batch.flows() == null ? List.of() : batch.flows();
+        List<CppBridge.PortScanFeatures> scans =
+                batch.portScans() == null ? List.of() : batch.portScans();
 
         for (int index = 0; index < flows.size(); ++index) {
             CppBridge.FlowFeatures flow = flows.get(index);
@@ -90,6 +155,16 @@ public final class Ctu13PacketContractService {
                     Map.copyOf(edgeFeatures), true, false));
         }
 
+        for (CppBridge.PortScanFeatures scan : scans) {
+            String source = normalizeIp(scan.sourceIp());
+            hosts.computeIfAbsent(source, ignored -> new HostStats())
+                    .observeCaptureScan(scan);
+        }
+
+        if (hosts.isEmpty()) {
+            hosts.put("__network__", new HostStats());
+        }
+
         List<GraphNode> nodes = new ArrayList<>();
         hosts.forEach((id, stats) -> {
             Map<String, Double> features = new LinkedHashMap<>();
@@ -102,6 +177,19 @@ public final class Ctu13PacketContractService {
             features.put("ack_count", 0.0);
             features.put("syn_ack_ratio", 0.0);
             features.put("topology_available", 1.0);
+            features.put("packet.capture_scan_observed_packets",
+                    (double) stats.scanObservedPackets);
+            features.put("packet.capture_scan_unique_destination_ports",
+                    (double) stats.scanUniqueDestinationPorts);
+            features.put("packet.capture_scan_sequential_transition_ratio",
+                    stats.scanSequentialTransitionRatio);
+            features.put("packet.capture_scan_pattern_sequential",
+                    stats.scanSequential ? 1.0 : 0.0);
+            features.put("packet.capture_scan_pattern_randomized",
+                    stats.scanRandomized ? 1.0 : 0.0);
+            if ("__network__".equals(id)) {
+                features.put("topology_available", 0.0);
+            }
             nodes.add(new GraphNode(id, Map.copyOf(features)));
         });
         nodes.sort(java.util.Comparator.comparing(GraphNode::id));
@@ -110,7 +198,7 @@ public final class Ctu13PacketContractService {
                 GraphConstructionService.SCHEMA_VERSION,
                 windowStart,
                 windowEnd,
-                true,
+                !flows.isEmpty(),
                 List.copyOf(nodes),
                 List.copyOf(edges),
                 new GraphLabel(false, AttackStage.NONE));
@@ -130,6 +218,11 @@ public final class Ctu13PacketContractService {
         private double outboundBytes;
         private long flowCount;
         private final TreeSet<Integer> destinationPorts = new TreeSet<>();
+        private long scanObservedPackets;
+        private long scanUniqueDestinationPorts;
+        private double scanSequentialTransitionRatio;
+        private boolean scanSequential;
+        private boolean scanRandomized;
 
         private void observeOutbound(CppBridge.FlowFeatures flow) {
             ++flowCount;
@@ -141,6 +234,21 @@ public final class Ctu13PacketContractService {
 
         private void observeInbound(CppBridge.FlowFeatures flow) {
             inboundBytes += flow.payloadSizeMean() * flow.packetCount();
+        }
+
+        private void observeCaptureScan(CppBridge.PortScanFeatures scan) {
+            scanObservedPackets = Math.max(
+                    scanObservedPackets, scan.observedPackets());
+            scanUniqueDestinationPorts = Math.max(
+                    scanUniqueDestinationPorts,
+                    scan.uniqueDestinationPorts());
+            scanSequentialTransitionRatio = Math.max(
+                    scanSequentialTransitionRatio,
+                    scan.sequentialTransitionRatio());
+            String pattern = scan.pattern() == null
+                    ? "" : scan.pattern().toLowerCase(java.util.Locale.ROOT);
+            scanSequential |= pattern.contains("sequential");
+            scanRandomized |= pattern.contains("random");
         }
     }
 }

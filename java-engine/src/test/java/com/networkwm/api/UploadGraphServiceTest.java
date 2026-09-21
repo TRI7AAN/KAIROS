@@ -1,6 +1,10 @@
 package com.networkwm.api;
 
+import com.networkwm.bridge.CppBridge.ExtractionBatch;
+import com.networkwm.bridge.CppBridge.FlowFeatures;
+import com.networkwm.bridge.CppBridge.PortScanFeatures;
 import com.networkwm.graph.CicGraphDatasetService;
+import com.networkwm.graph.Ctu13PacketContractService;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -10,6 +14,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -39,16 +44,55 @@ class UploadGraphServiceTest {
     }
 
     @Test
-    void rejectsUnsupportedPcapUntilSchemaAdapterIsAvailable() {
+    void convertsUploadedPcapIntoPacketNativeWindows() throws Exception {
+        List<FlowFeatures> flows = List.of(
+                flow(1_700_000_000_000_000L, "10.0.0.1", "10.0.0.2"),
+                flow(1_700_000_025_000_000L, "10.0.0.2", "10.0.0.3"));
+        UploadGraphService service = new UploadGraphService(
+                new CicGraphDatasetService(),
+                new Ctu13PacketContractService(),
+                ignored -> new ExtractionBatch(flows, List.of(
+                        new PortScanFeatures(
+                                "10.0.0.1", 25, 22, 0.8, "sequential"))));
+
+        var sequence = service.fromUpload(
+                new BytesMultipartFile("capture.pcap", new byte[]{1}));
+
+        assertEquals(3, sequence.windows().size());
+        assertTrue(sequence.windows().get(0).topologyAvailable());
+        assertFalse(sequence.windows().get(1).topologyAvailable());
+        assertEquals("__network__",
+                sequence.windows().get(1).nodes().get(0).id());
+        assertEquals(22.0, sequence.windows().get(0).nodes().stream()
+                .filter(node -> node.id().equals("10.0.0.1"))
+                .findFirst().orElseThrow().features().get(
+                        "packet.capture_scan_unique_destination_ports"));
+        assertTrue(sequence.edgeFeatureNames().contains(
+                "packet.packet_count"));
+    }
+
+    @Test
+    void rejectsUnsupportedUploadExtension() {
         UploadGraphService service =
                 new UploadGraphService(new CicGraphDatasetService());
 
         IllegalArgumentException error = assertThrows(
                 IllegalArgumentException.class,
                 () -> service.fromUpload(
-                        new BytesMultipartFile("capture.pcap", new byte[]{1})));
+                        new BytesMultipartFile("capture.txt", new byte[]{1})));
 
-        assertTrue(error.getMessage().contains("CICFlowMeter CSV"));
+        assertTrue(error.getMessage().contains(".pcap"));
+    }
+
+    private static FlowFeatures flow(
+            long epochMicros,
+            String source,
+            String destination) {
+        return new FlowFeatures(
+                source, destination, 12345, 443, 6, 5,
+                epochMicros, epochMicros + 1_000_000L,
+                64.0, 0.0, 0.0, 0, 0, 0,
+                128.0, 10.0, 0.0);
     }
 
     private record BytesMultipartFile(

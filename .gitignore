@@ -58,6 +58,7 @@ python-ml/weights/*
 !python-ml/weights/world_model_30s.pt
 !python-ml/weights/baseline_*.joblib
 !python-ml/weights/shap_surrogate_v1.joblib
+!python-ml/weights/ps_aligned_temporal_forecaster.joblib
 !python-ml/weights/world_model_phase32.pt
 !python-ml/weights/world_model_v1_pretune_baseline_loss.pt
 results/*

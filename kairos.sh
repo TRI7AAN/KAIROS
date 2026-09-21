@@ -70,10 +70,11 @@ fi
 [ -f "$ROOT/.env" ] || { cp "$ROOT/.env.example" "$ROOT/.env"; info "created .env from .env.example (offline default)"; }
 [ -f "$ROOT/python-ml/weights/world_model_v1.pt" ] || warn "weights/world_model_v1.pt missing — /predict will fail"
 
-# 7) Build live helper ----------------------------------------------------------
-info "building kairos_live_stream ..."
+# 7) Build native extractor and live helper ----------------------------------------------------------
+info "building libkairos_native.so + kairos_live_stream ..."
 "$ROOT/.venv/bin/cmake" -S "$ROOT/cpp-engine" -B "$ROOT/cpp-engine/build" -DBUILD_TESTING=ON >/dev/null
-"$ROOT/.venv/bin/cmake" --build "$ROOT/cpp-engine/build" --target kairos_live_stream -j2 >/dev/null
+"$ROOT/.venv/bin/cmake" --build "$ROOT/cpp-engine/build" --target kairos_native kairos_live_stream -j2 >/dev/null
+[ -f "$ROOT/cpp-engine/build/libkairos_native.so" ] || fail "native extractor build failed"
 [ -x "$ROOT/cpp-engine/build/kairos_live_stream" ] || fail "live helper build failed"
 
 if [ "$CHECK_ONLY" = "--check-only" ]; then

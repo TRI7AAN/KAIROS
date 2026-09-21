@@ -1,0 +1,48 @@
+{
+  "artifact_version": "kairos.temporal-ablation.v1",
+  "horizon_windows": 6,
+  "horizon_seconds": 60,
+  "history_windows": 6,
+  "trees": 50,
+  "seed": 42,
+  "threshold": "fixed 0.5 to isolate feature effect",
+  "split": "per-day first-80% dev / final-20% untouched test (same as PS benchmark)",
+  "temporal_history6": {
+    "features": 6420,
+    "dev": [
+      10545,
+      819
+    ],
+    "test": [
+      2649,
+      1020
+    ],
+    "f1": 0.6870789957134109,
+    "precision": 0.9151712887438825,
+    "recall": 0.55,
+    "fpr": 0.03192142418661756,
+    "roc_auc": 0.8593835385596842
+  },
+  "static_current_only": {
+    "features": 1284,
+    "dev": [
+      10565,
+      819
+    ],
+    "test": [
+      2649,
+      1020
+    ],
+    "f1": 0.6789667896678967,
+    "precision": 0.9108910891089109,
+    "recall": 0.5411764705882353,
+    "fpr": 0.03314917127071823,
+    "roc_auc": 0.8465680256141745
+  },
+  "improvement_history_vs_static": {
+    "f1_absolute": 0.0081122060455142,
+    "roc_auc_absolute": 0.0128155129455098,
+    "note": "Same ExtraTrees(50), same split/target/threshold; only history summaries differ. Full 150-tree calibrated PS benchmark shows larger gain (F1 +0.0620, AUC +0.0681)."
+  },
+  "interpretation": "History summaries improve ranking and F1 over current-window-only with identical learner, evidencing temporal-dynamics gain. GNN-Transformer core separately provides K-step rollout (120s lead) and causal attention; calibrated infiltration probability comes from temporal head."
+}

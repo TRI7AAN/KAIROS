@@ -88,6 +88,29 @@ std::filesystem::path write_known_capture() {
     return path;
 }
 
+std::filesystem::path write_long_lived_capture() {
+    std::vector<std::uint8_t> capture;
+    append_le32(capture, 0xA1B2C3D4U);
+    append_le16(capture, 2U);
+    append_le16(capture, 4U);
+    append_le32(capture, 0U);
+    append_le32(capture, 0U);
+    append_le32(capture, 65535U);
+    append_le32(capture, 101U);
+    for (std::uint32_t timestamp = 1U; timestamp <= 61U;
+         timestamp += 10U) {
+        append_record(capture, udp_packet(64U, 80U, 4U), timestamp);
+    }
+
+    const auto path = std::filesystem::temp_directory_path() /
+        "kairos-long-lived-feature-sample.pcap";
+    std::ofstream output(path, std::ios::binary | std::ios::trunc);
+    output.write(reinterpret_cast<const char*>(capture.data()),
+                 static_cast<std::streamsize>(capture.size()));
+    require(output.good(), "failed to write long-lived PCAP fixture");
+    return path;
+}
+
 void extractor_test() {
     const auto path = write_known_capture();
     networkwm::FeatureExtractor extractor;
@@ -114,6 +137,24 @@ void extractor_test() {
     std::filesystem::remove(path);
 }
 
+void long_lived_flow_window_test() {
+    const auto path = write_long_lived_capture();
+    networkwm::FeatureExtractor extractor;
+    require(extractor.open(path.string()), extractor.last_error());
+    const auto batch = extractor.extract_next_batch_analysis(32U);
+    require(batch.flows.size() == 7U,
+            "long-lived flow must be split into seven 10-second windows");
+    for (std::size_t index = 0; index < batch.flows.size(); ++index) {
+        const auto& flow = batch.flows[index];
+        require(flow.packet_count == 1U,
+                "each long-lived flow window must contain one packet");
+        require(flow.first_seen_epoch_micros ==
+                    (1U + index * 10U) * 1'000'000U,
+                "long-lived flow window has the wrong timestamp");
+    }
+    std::filesystem::remove(path);
+}
+
 void detector_test() {
     networkwm::PortScanDetector detector({4U, 0.75});
     for (std::uint16_t port = 100U; port < 104U; ++port) {
@@ -134,6 +175,7 @@ void detector_test() {
 int main() {
     try {
         extractor_test();
+        long_lived_flow_window_test();
         detector_test();
         std::cout << "feature extractor tests passed\n";
         return 0;

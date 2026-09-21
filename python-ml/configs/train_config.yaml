@@ -58,10 +58,11 @@ training:
   lr_schedule: none
   dropout: 0.1
   gradient_clip_norm: 1.0
-  dynamics_weight: 1.0
-  infiltration_weight: 1.0
-  stage_weight: 1.0
+  dynamics_weight: 0.5
+  infiltration_weight: 3.0
+  stage_weight: 3.0
   focal_gamma: 2.0
+  infiltration_alpha: 0.75
   random_seed: 42
   # Checkpoint selection: validation LOSS (best_epoch). Phase 63 showed this
   # anti-correlates with infiltration F1 on this task (dynamics-MSE ~95% of
@@ -72,8 +73,12 @@ training:
   # python-ml/weights/world_model_v1_pretune_baseline_loss.pt).
 
 rollout:
-  # K-step autoregressive rollout used for evaluation / load-test (Fix 3).
-  k_steps: 5
+  # K-step autoregressive rollout used for evaluation / load-test.
+  # Canonical K=3 selected by Phase 32 ablation (K=3/5/10; 10s windows won
+  # 5s/10s/30s). Winner tag alpha075_050_3_3, GNN encoder, loss-selected ep1
+  # val_loss 3.9153693893621133. Phase 38 stage-head fine-tune stamped into
+  # world_model_v1.pt (artifact kairos.world-model.v1.phase38-stage).
+  k_steps: 3
 
 logging:
   checkpoint: python-ml/weights/world_model_v1.pt

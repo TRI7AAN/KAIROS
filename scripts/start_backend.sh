@@ -29,6 +29,7 @@ export ONLINE_MODE="${ONLINE_MODE:-false}"
 PYTHON="$ROOT/.venv/bin/python"
 CMAKE="$ROOT/.venv/bin/cmake"
 LIVE_HELPER="$ROOT/cpp-engine/build/kairos_live_stream"
+NATIVE_LIBRARY="$ROOT/cpp-engine/build/libkairos_native.so"
 LOG_DIR="${LOG_DIR:-/tmp}"
 ML_LOG="$LOG_DIR/kairos-ml.log"
 JAVA_LOG="$LOG_DIR/kairos-java.log"
@@ -39,9 +40,10 @@ JAVA_LOG="$LOG_DIR/kairos-java.log"
 [ -f "$ROOT/python-ml/weights/world_model_v1.pt" ] || { echo "WARN: python-ml/weights/world_model_v1.pt missing — /predict will fail to load"; }
 [ -x "$CMAKE" ] || { echo "FAIL: $CMAKE not found. Install requirements into .venv"; exit 1; }
 
-echo "-- building bounded live-capture helper --"
+echo "-- building native packet extractor and bounded live-capture helper --"
 "$CMAKE" -S "$ROOT/cpp-engine" -B "$ROOT/cpp-engine/build" -DBUILD_TESTING=ON >/dev/null
-"$CMAKE" --build "$ROOT/cpp-engine/build" --target kairos_live_stream -j2 >/dev/null
+"$CMAKE" --build "$ROOT/cpp-engine/build" --target kairos_native kairos_live_stream -j2 >/dev/null
+[ -f "$NATIVE_LIBRARY" ] || { echo "FAIL: native build did not produce $NATIVE_LIBRARY"; exit 1; }
 [ -x "$LIVE_HELPER" ] || { echo "FAIL: live helper build did not produce $LIVE_HELPER"; exit 1; }
 export KAIROS_LIVE_HELPER="${KAIROS_LIVE_HELPER:-$LIVE_HELPER}"
 if [ ! -x /usr/bin/dumpcap ]; then
@@ -101,7 +103,7 @@ ML_PID=$!
 wait_for_url "http://${ML_HOST}:${ML_PORT}/health" "python-ml" 90
 
 echo "-- 2/2 starting java-engine --"
-(cd "$ROOT/java-engine" && exec ./mvnw -q spring-boot:run -Dspring-boot.run.jvmArguments="-Dserver.port=${JAVA_PORT}") >"$JAVA_LOG" 2>&1 &
+(cd "$ROOT/java-engine" && exec ./mvnw -q spring-boot:run -Dspring-boot.run.jvmArguments="-Dserver.port=${JAVA_PORT} -Dkairos.native.library=${NATIVE_LIBRARY}") >"$JAVA_LOG" 2>&1 &
 JAVA_PID=$!
 wait_for_port "$JAVA_PORT" "java-engine" 180
 

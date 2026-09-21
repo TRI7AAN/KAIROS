@@ -100,12 +100,14 @@ def project_packet_contract(
 
     node_names, edge_names = _schema_from_surrogate(surrogate_feature_names)
     projected_windows: list[dict[str, Any]] = []
+    evidence_windows: list[dict[str, Any]] = []
     for window in contract.get("windows", []):
         if not isinstance(window, Mapping):
             raise ValueError("packet contract windows must be objects")
         flows: list[dict[str, float]] = []
         destination_ports: set[int] = set()
         total_bytes = 0.0
+        packet_features: list[Mapping[str, Any]] = []
         for edge in window.get("edges", []):
             if not isinstance(edge, Mapping):
                 raise ValueError("packet contract edges must be objects")
@@ -114,10 +116,22 @@ def project_packet_contract(
                 raise ValueError("packet edge features must be an object")
             flow = _flow_values(features)
             flows.append(flow)
+            packet_features.append(features)
             total_bytes += flow["totlen_fwd_pkts"]
             port = int(flow["dst_port"])
             if port > 0:
                 destination_ports.add(port)
+
+        scan_ports = max(
+            (
+                _number(node.get("features", {}),
+                        "packet.capture_scan_unique_destination_ports")
+                for node in window.get("nodes", [])
+                if isinstance(node, Mapping)
+                and isinstance(node.get("features", {}), Mapping)
+            ),
+            default=0.0,
+        )
 
         edge_features: dict[str, float] = {}
         for encoded in edge_names:
@@ -135,9 +149,44 @@ def project_packet_contract(
             "syn_ack_ratio": 0.0,
             "syn_count": 0.0,
             "topology_available": 0.0,
-            "unique_destination_ports": float(len(destination_ports)),
+            "unique_destination_ports": max(
+                float(len(destination_ports)), scan_ports
+            ),
         }
         node_features = {name: node_source.get(name, 0.0) for name in node_names}
+        evidence_windows.append({
+            "window_start": window.get("windowStart"),
+            "empty_window": len(flows) == 0,
+            "packet_count": sum(
+                _number(item, "packet.packet_count")
+                for item in packet_features
+            ),
+            "ttl_mean": _aggregate([
+                _number(item, "packet.ttl_mean")
+                for item in packet_features
+            ], "mean"),
+            "ttl_variance_mean": _aggregate([
+                _number(item, "packet.ttl_variance")
+                for item in packet_features
+            ], "mean"),
+            "tcp_window_trend_mean": _aggregate([
+                _number(item, "packet.tcp_window_trend")
+                for item in packet_features
+            ], "mean"),
+            "fragment_count": sum(
+                _number(item, "packet.fragment_count")
+                for item in packet_features
+            ),
+            "retransmission_count": sum(
+                _number(item, "packet.retransmission_count")
+                for item in packet_features
+            ),
+            "truncated_packet_count": sum(
+                _number(item, "packet.truncated_packet_count")
+                for item in packet_features
+            ),
+            "capture_scan_unique_destination_ports": scan_ports,
+        })
         projected_windows.append({
             "schemaVersion": window.get("schemaVersion", "kairos.graph.v1"),
             "windowStart": window.get("windowStart"),
@@ -163,5 +212,22 @@ def project_packet_contract(
         "edgeFeatureNames": edge_names,
         "windows": projected_windows,
         "inputProjection": "packet-to-cic-v1",
+        "inputProjectionDetail": {
+            "projection": "packet-to-cic-v1",
+            "model_input": (
+                "CIC-compatible packet aggregates; additional packet and "
+                "capture-level scan signals are retained as analyst evidence"
+            ),
+            "preserved_empty_windows": sum(
+                1 for item in evidence_windows if item["empty_window"]
+            ),
+            "windows": evidence_windows,
+            "unmapped_model_features": [
+                "ttl_mean", "ttl_variance_mean", "tcp_window_trend_mean",
+                "fragment_count", "retransmission_count",
+                "truncated_packet_count",
+                "capture_scan_unique_destination_ports",
+            ],
+        },
     }
     return projected, True

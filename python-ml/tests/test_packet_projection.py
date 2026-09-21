@@ -13,6 +13,10 @@ class PacketProjectionTest(unittest.TestCase):
         "node.flow_count.std",
         "node.flow_count.max",
         "node.flow_count.sum",
+        "node.unique_destination_ports.mean",
+        "node.unique_destination_ports.std",
+        "node.unique_destination_ports.max",
+        "node.unique_destination_ports.sum",
         "node.topology_available.mean",
         "node.topology_available.std",
         "node.topology_available.max",
@@ -48,7 +52,13 @@ class PacketProjectionTest(unittest.TestCase):
                 "windowStart": "2026-01-01T00:00:00Z",
                 "windowEnd": "2026-01-01T00:00:10Z",
                 "topologyAvailable": True,
-                "nodes": [],
+                "nodes": [{
+                    "id": "10.0.0.1",
+                    "features": {
+                        "topology_available": 1,
+                        "packet.capture_scan_unique_destination_ports": 22,
+                    },
+                }],
                 "edges": [{
                     "id": "flow-1",
                     "source": "10.0.0.1",
@@ -59,6 +69,12 @@ class PacketProjectionTest(unittest.TestCase):
                         "packet.packet_count": 4,
                         "packet.payload_size_mean": 100,
                         "packet.payload_size_stddev": 5,
+                        "packet.ttl_mean": 63,
+                        "packet.ttl_variance": 2,
+                        "packet.tcp_window_trend": -1.5,
+                        "packet.fragment_count": 1,
+                        "packet.retransmission_count": 2,
+                        "packet.truncated_packet_count": 3,
                         "protocol": 6,
                     },
                 }],
@@ -70,7 +86,7 @@ class PacketProjectionTest(unittest.TestCase):
 
         self.assertTrue(changed)
         self.assertEqual("packet-to-cic-v1", projected["inputProjection"])
-        self.assertEqual(["flow_count", "topology_available"],
+        self.assertEqual(["flow_count", "unique_destination_ports", "topology_available"],
                          projected["nodeFeatureNames"])
         self.assertEqual(
             ["dst_port.mean", "flow_duration.sum", "tot_fwd_pkts.sum"],
@@ -84,6 +100,16 @@ class PacketProjectionTest(unittest.TestCase):
         self.assertEqual(2_000_000.0,
                          edge["features"]["flow_duration.sum"])
         self.assertEqual(4.0, edge["features"]["tot_fwd_pkts.sum"])
+        detail = projected["inputProjectionDetail"]
+        self.assertEqual(0, detail["preserved_empty_windows"])
+        self.assertEqual(22.0,
+                         window["nodes"][0]["features"].get(
+                             "unique_destination_ports"))
+        evidence = detail["windows"][0]
+        self.assertEqual(63.0, evidence["ttl_mean"])
+        self.assertEqual(2.0, evidence["retransmission_count"])
+        self.assertEqual(22.0,
+                         evidence["capture_scan_unique_destination_ports"])
 
     def test_non_packet_contract_is_unchanged(self):
         contract = {"edgeFeatureNames": ["dst_port.mean"], "windows": []}
