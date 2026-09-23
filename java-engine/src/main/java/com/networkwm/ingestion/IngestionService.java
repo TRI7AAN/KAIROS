@@ -32,6 +32,7 @@ import java.util.regex.Pattern;
 @Service
 public class IngestionService {
     public static final double DEFAULT_ABSOLUTE_CLIP = 1.0e12;
+    private static final int MAX_REPORTED_VALIDATION_ERRORS = 10;
 
     private static final DateTimeFormatter CIC_TIMESTAMP =
             DateTimeFormatter.ofPattern("d/M/uuuu H:mm:ss", Locale.ROOT)
@@ -68,6 +69,8 @@ public class IngestionService {
         long rowsEmitted = 0L;
         long repeatedHeadersSkipped = 0L;
         long sanitizedValues = 0L;
+        long validationErrorCount = 0L;
+        List<String> validationErrors = new ArrayList<>();
 
         try (BufferedReader reader = Files.newBufferedReader(csvPath, StandardCharsets.UTF_8)) {
             String headerLine = reader.readLine();
@@ -85,10 +88,21 @@ public class IngestionService {
                 if (line.isBlank()) {
                     continue;
                 }
-                List<String> values = parseCsvLine(line);
+                List<String> values;
+                try {
+                    values = parseCsvLine(line);
+                } catch (CsvFormatException error) {
+                    ++validationErrorCount;
+                    addValidationError(validationErrors,
+                            "row " + (rowsRead + 1L) + ": " + error.getMessage());
+                    continue;
+                }
                 if (values.size() != headers.size()) {
-                    throw new IOException("CSV row " + (rowsRead + 1L) + " has "
-                            + values.size() + " fields; expected " + headers.size());
+                    ++validationErrorCount;
+                    addValidationError(validationErrors,
+                            "row " + (rowsRead + 1L) + " has " + values.size()
+                                    + " fields; expected " + headers.size());
+                    continue;
                 }
                 if ("timestamp".equals(normalizeHeader(values.get(timestampIndex)))
                         && "label".equals(normalizeHeader(values.get(labelIndex)))) {
@@ -101,8 +115,11 @@ public class IngestionService {
                     localTimestamp = LocalDateTime.parse(
                             values.get(timestampIndex).trim(), CIC_TIMESTAMP);
                 } catch (RuntimeException error) {
-                    throw new IOException(
-                            "Invalid CIC timestamp at CSV row " + (rowsRead + 1L), error);
+                    ++validationErrorCount;
+                    addValidationError(validationErrors,
+                            "row " + (rowsRead + 1L)
+                                    + " has an invalid CIC timestamp");
+                    continue;
                 }
 
                 String rawLabel = values.get(labelIndex).trim();
@@ -110,14 +127,26 @@ public class IngestionService {
                 String sourceIp = optionalField(values, headers, "src_ip", "source_ip");
                 String destinationIp = optionalField(values, headers, "dst_ip", "destination_ip");
                 Map<String, Double> features = new LinkedHashMap<>();
+                boolean validRow = true;
                 for (int index = 0; index < headers.size(); ++index) {
                     String header = headers.get(index);
                     if (DROPPED_COLUMNS.contains(header)) {
                         continue;
                     }
-                    NumericValue parsed = sanitize(values.get(index), rowsRead + 1L, header);
+                    NumericValue parsed;
+                    try {
+                        parsed = sanitize(values.get(index), rowsRead + 1L, header);
+                    } catch (CsvFormatException error) {
+                        ++validationErrorCount;
+                        addValidationError(validationErrors, error.getMessage());
+                        validRow = false;
+                        break;
+                    }
                     features.put(header, parsed.value());
                     sanitizedValues += parsed.sanitized() ? 1L : 0L;
+                }
+                if (!validRow) {
+                    continue;
                 }
                 int sourcePort = integerFeature(features, "src_port", "source_port");
                 int destinationPort = integerFeature(features, "dst_port", "destination_port");
@@ -138,6 +167,15 @@ public class IngestionService {
                         stage));
                 ++rowsEmitted;
             }
+        }
+
+        if (validationErrorCount > 0L) {
+            long omitted = validationErrorCount - validationErrors.size();
+            String suffix = omitted > 0L
+                    ? "; plus " + omitted + " additional invalid row(s)" : "";
+            throw new CsvFormatException(
+                    "CSV validation failed: " + String.join("; ", validationErrors)
+                            + suffix);
         }
 
         return new IngestionSummary(
@@ -222,13 +260,14 @@ public class IngestionService {
 
 
     private static List<String> normalizeHeaders(List<String> rawHeaders)
-            throws IOException {
+            throws CsvFormatException {
         List<String> normalized = new ArrayList<>(rawHeaders.size());
         Set<String> seen = new java.util.HashSet<>();
         for (String rawHeader : rawHeaders) {
             String header = normalizeHeader(rawHeader);
             if (header.isEmpty() || !seen.add(header)) {
-                throw new IOException("Empty or duplicate normalized CSV header: " + rawHeader);
+                throw new CsvFormatException(
+                        "Empty or duplicate normalized CSV header: " + rawHeader);
             }
             normalized.add(header);
         }
@@ -236,16 +275,17 @@ public class IngestionService {
     }
 
     private static int requiredIndex(List<String> headers, String required)
-            throws IOException {
+            throws CsvFormatException {
         int index = headers.indexOf(required);
         if (index < 0) {
-            throw new IOException("Required CSV column is missing: " + required);
+            throw new CsvFormatException(
+                    "Required CSV column is missing: " + required);
         }
         return index;
     }
 
     private NumericValue sanitize(String raw, long row, String header)
-            throws IOException {
+            throws CsvFormatException {
         String value = raw.trim();
         if (value.isEmpty()
                 || value.equalsIgnoreCase("nan")
@@ -266,7 +306,7 @@ public class IngestionService {
         try {
             parsed = Double.parseDouble(value);
         } catch (NumberFormatException error) {
-            throw new IOException(
+            throw new CsvFormatException(
                     "Non-numeric feature at row " + row + ", column " + header, error);
         }
         if (Double.isNaN(parsed)) {
@@ -317,7 +357,7 @@ public class IngestionService {
                 stage);
     }
 
-    static List<String> parseCsvLine(String line) throws IOException {
+    static List<String> parseCsvLine(String line) throws CsvFormatException {
         List<String> fields = new ArrayList<>();
         StringBuilder current = new StringBuilder();
         boolean quoted = false;
@@ -338,13 +378,30 @@ public class IngestionService {
             }
         }
         if (quoted) {
-            throw new IOException("Unterminated quoted CSV field");
+            throw new CsvFormatException("unterminated quoted CSV field");
         }
         fields.add(current.toString());
         return fields;
     }
 
     private record NumericValue(double value, boolean sanitized) {
+    }
+
+    private static void addValidationError(List<String> errors, String message) {
+        if (errors.size() < MAX_REPORTED_VALIDATION_ERRORS) {
+            errors.add(message);
+        }
+    }
+
+    /** Safe, user-actionable CSV validation failure. */
+    public static final class CsvFormatException extends IOException {
+        public CsvFormatException(String message) {
+            super(message);
+        }
+
+        public CsvFormatException(String message, Throwable cause) {
+            super(message, cause);
+        }
     }
 
     public enum AttackStage {

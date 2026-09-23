@@ -113,4 +113,27 @@ class ForecastUploadTest {
                         .contentType(MediaType.MULTIPART_FORM_DATA))
                 .andExpect(status().isBadRequest());
     }
+
+    @Test
+    void malformedCsvReportsEveryInvalidRow() throws Exception {
+        String malformed = String.join("\n",
+                "Flow Duration,Timestamp,Label",
+                "100,14/02/2018 10:45:00,Benign",
+                "not-a-number,14/02/2018 10:45:01,Benign",
+                "200,14/02/2018 10:45:02,Benign,extra");
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "malformed.csv", "text/csv",
+                malformed.getBytes(StandardCharsets.UTF_8));
+
+        mvc.perform(multipart("/forecast/upload")
+                        .file(file)
+                        .contentType(MediaType.MULTIPART_FORM_DATA))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.detail").value(
+                        org.hamcrest.Matchers.allOf(
+                                org.hamcrest.Matchers.containsString(
+                                        "row 3, column flow_duration"),
+                                org.hamcrest.Matchers.containsString(
+                                        "row 4 has 4 fields; expected 3"))));
+    }
 }

@@ -66,10 +66,12 @@ class ForecastControllerTest {
         try {
             ForecastController controller = controller(python);
 
+            var responseEntity = controller.forecastUpload(
+                    new BytesMultipartFile("traffic.csv", CSV.getBytes()), 3);
             ForecastController.ForecastResponse response =
-                    controller.forecastUpload(
-                            new BytesMultipartFile("traffic.csv", CSV.getBytes()), 3);
+                    (ForecastController.ForecastResponse) responseEntity.getBody();
 
+            assertEquals(200, responseEntity.getStatusCode().value());
             assertEquals("kairos.forecast.v1", response.artifactVersion());
             assertEquals(0.73, response.prediction().probability());
             assertEquals("INITIAL_ACCESS", response.prediction().predictedStage());
@@ -123,12 +125,12 @@ class ForecastControllerTest {
         try {
             ForecastController controller = controller(python);
 
-            ResponseStatusException error = assertThrows(
-                    ResponseStatusException.class,
-                    () -> controller.forecastUpload(
-                            new BytesMultipartFile("capture.txt", new byte[]{1}), 3));
+            var response = controller.forecastUpload(
+                    new BytesMultipartFile("capture.txt", new byte[]{1}), 3);
 
-            assertEquals(HttpStatus.BAD_REQUEST, error.getStatusCode());
+            assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+            assertTrue(((ForecastController.UploadError) response.getBody())
+                    .detail().contains(".pcap"));
         } finally {
             python.stop(0);
         }

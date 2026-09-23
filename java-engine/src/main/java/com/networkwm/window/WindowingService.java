@@ -83,7 +83,10 @@ public final class WindowingService {
                     || scan.sourceIp().isBlank()) {
                 continue;
             }
-            for (MutableWindow window : windows.values()) {
+            Instant scanTimestamp = microsToInstant(scan.windowStartEpochMicros());
+            Instant start = floor(scanTimestamp, windowSeconds);
+            MutableWindow window = windows.get(start);
+            if (window != null) {
                 window.observeScan(scan);
             }
         }

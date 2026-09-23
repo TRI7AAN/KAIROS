@@ -105,6 +105,7 @@ public final class CppBridge {
 
     public record PortScanFeatures(
             String sourceIp,
+            long windowStartEpochMicros,
             long observedPackets,
             long uniqueDestinationPorts,
             double sequentialTransitionRatio,

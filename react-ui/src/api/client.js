@@ -26,61 +26,61 @@ function normalizeHorizon(item = {}) {
   };
 }
 
+export function normalizePrediction(raw = {}) {
+  const rawRollout = raw.rollout || {};
+  const rawValidated = raw.validated_forecast || raw.validatedForecast || {};
+  const horizons = (rawValidated.horizons || []).map(normalizeHorizon);
+  const rawCoverage = raw.stage_coverage || raw.stageCoverage || {};
+  return {
+    artifactVersion: raw.artifact_version || raw.artifactVersion,
+    probability: raw.probability,
+    predictedStage: raw.predicted_stage || raw.predictedStage,
+    quality: raw.quality || 'ok',
+    qualityDetail: raw.quality_detail || raw.qualityDetail || null,
+    topFeatures: (raw.top_5_features || raw.topFeatures || []).map((feature) => ({
+      feature: feature.feature,
+      value: feature.value,
+      shapValue: feature.shap_value ?? feature.shapValue,
+    })),
+    attentionSummary: {
+      contextWindows: raw.attention_summary?.context_windows ?? raw.attentionSummary?.contextWindows ?? 0,
+      topContext: raw.attention_summary?.top_context_for_final_query || raw.attentionSummary?.topContext || [],
+      causalFutureAttentionMass: raw.attention_summary?.causal_future_attention_mass ?? raw.attentionSummary?.causalFutureAttentionMass ?? 0,
+    },
+    rollout: {
+      steps: rawRollout.steps || 0,
+      probabilities: rawRollout.probabilities || [],
+      predictedStages: rawRollout.predicted_stages || rawRollout.predictedStages || [],
+      maxProbability: rawRollout.max_probability ?? rawRollout.maxProbability ?? 0,
+    },
+    validatedForecast: {
+      available: Boolean(rawValidated.available),
+      artifactVersion: rawValidated.artifact_version || rawValidated.artifactVersion,
+      reason: rawValidated.reason,
+      detail: rawValidated.detail,
+      requiredHistoryWindows: rawValidated.required_history_windows ?? rawValidated.requiredHistoryWindows ?? 0,
+      receivedHistoryWindows: rawValidated.received_history_windows ?? rawValidated.receivedHistoryWindows ?? 0,
+      horizons,
+      primary: rawValidated.primary ? normalizeHorizon(rawValidated.primary) : null,
+    },
+    stageCoverage: {
+      supported: rawCoverage.supported || [],
+      unsupported: rawCoverage.unsupported_no_training_support || rawCoverage.unsupportedNoTrainingSupport || [],
+      policy: rawCoverage.policy || '',
+    },
+    inputProjectionDetail: raw.input_projection_detail || raw.inputProjectionDetail || null,
+    inputProjection: raw.input_projection || raw.inputProjection || 'none',
+    latencyMs: raw.latency_ms ?? raw.latencyMs ?? 0,
+  };
+}
+
 export async function forecastTraffic(file, rolloutSteps = 5, signal) {
   const form = new FormData();
   form.append('file', file);
   form.append('rolloutSteps', String(rolloutSteps));
   const response = await api.post('/forecast/upload', form, { signal });
   const payload = response.data;
-  const raw = payload.prediction || {};
-  const rawRollout = raw.rollout || {};
-  const rawValidated = raw.validated_forecast || {};
-  const horizons = (rawValidated.horizons || []).map(normalizeHorizon);
-  return {
-    ...payload,
-    prediction: {
-      artifactVersion: raw.artifact_version,
-      probability: raw.probability,
-      predictedStage: raw.predicted_stage,
-      quality: raw.quality || 'ok',
-      qualityDetail: raw.quality_detail || null,
-      topFeatures: (raw.top_5_features || []).map((feature) => ({
-        feature: feature.feature,
-        value: feature.value,
-        shapValue: feature.shap_value,
-      })),
-      attentionSummary: {
-        contextWindows: raw.attention_summary?.context_windows || 0,
-        topContext: raw.attention_summary?.top_context_for_final_query || [],
-        causalFutureAttentionMass:
-          raw.attention_summary?.causal_future_attention_mass || 0,
-      },
-      rollout: {
-        steps: rawRollout.steps || 0,
-        probabilities: rawRollout.probabilities || [],
-        predictedStages: rawRollout.predicted_stages || [],
-        maxProbability: rawRollout.max_probability || 0,
-      },
-      validatedForecast: {
-        available: Boolean(rawValidated.available),
-        artifactVersion: rawValidated.artifact_version,
-        reason: rawValidated.reason,
-        detail: rawValidated.detail,
-        requiredHistoryWindows: rawValidated.required_history_windows || 0,
-        receivedHistoryWindows: rawValidated.received_history_windows || 0,
-        horizons,
-        primary: rawValidated.primary ? normalizeHorizon(rawValidated.primary) : null,
-      },
-      stageCoverage: {
-        supported: raw.stage_coverage?.supported || [],
-        unsupported: raw.stage_coverage?.unsupported_no_training_support || [],
-        policy: raw.stage_coverage?.policy || '',
-      },
-      inputProjectionDetail: raw.input_projection_detail || null,
-      inputProjection: raw.input_projection || 'none',
-      latencyMs: raw.latency_ms || 0,
-    },
-  };
+  return { ...payload, prediction: normalizePrediction(payload.prediction) };
 }
 
 export async function listLiveInterfaces() {
@@ -112,7 +112,10 @@ export function openLiveEvents(sessionId, handlers) {
   const source = new EventSource(`${base}/live/sessions/${encodeURIComponent(sessionId)}/events`);
   const onState = (event) => handlers.onState?.(JSON.parse(event.data));
   const onCounter = (event) => handlers.onCounter?.(JSON.parse(event.data));
-  const onPrediction = (event) => handlers.onPrediction?.(JSON.parse(event.data));
+  const onPrediction = (event) => {
+    const item = JSON.parse(event.data);
+    handlers.onPrediction?.({ ...item, prediction: normalizePrediction(item.prediction) });
+  };
   source.addEventListener('state', onState);
   source.addEventListener('counter', onCounter);
   source.addEventListener('prediction', onPrediction);

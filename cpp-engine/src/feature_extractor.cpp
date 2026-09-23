@@ -514,7 +514,8 @@ struct FeatureExtractor::Impl {
                       bool capture_truncated,
                       std::uint64_t timestamp_micros,
                       std::map<WindowedFlowKey, RunningAggregate>& flows,
-                      PortScanDetector& scan_detector) {
+                      std::map<std::uint64_t, PortScanDetector>& scan_detectors,
+                      PortScanConfig scan_config) {
         std::size_t ip_offset = 0;
         if (packet_link_type == kEthernetLinkType) {
             if (packet.size() < 14U) {
@@ -653,7 +654,11 @@ struct FeatureExtractor::Impl {
                        ip[8], fragmented, payload_size, capture_truncated,
                        is_tcp, tcp_window, tcp_sequence, sequence_span,
                        timestamp_micros);
-        scan_detector.observe(key);
+        const std::uint64_t scan_window =
+            timestamp_micros / kAggregationWindowMicros
+                * kAggregationWindowMicros;
+        scan_detectors.try_emplace(scan_window, scan_config)
+                .first->second.observe(key);
         return true;
     }
 };
@@ -751,7 +756,7 @@ ExtractionBatch FeatureExtractor::extract_next_batch_analysis(
     }
 
     std::map<WindowedFlowKey, RunningAggregate> flows;
-    PortScanDetector scan_detector(scan_config);
+    std::map<std::uint64_t, PortScanDetector> scan_detectors;
     std::size_t records_read = 0U;
     while (records_read < max_packets) {
         std::vector<std::uint8_t> packet;
@@ -809,15 +814,21 @@ ExtractionBatch FeatureExtractor::extract_next_batch_analysis(
         }
         ++records_read;
         impl_->parse_packet(packet, packet_link_type,
-                            captured_size < original_size, timestamp_micros, flows,
-                            scan_detector);
+                            captured_size < original_size, timestamp_micros,
+                            flows, scan_detectors, scan_config);
     }
 
     batch.flows.reserve(flows.size());
     for (const auto& entry : flows) {
         batch.flows.push_back(finish(entry.first.flow, entry.second));
     }
-    batch.port_scans = scan_detector.results();
+    for (const auto& entry : scan_detectors) {
+        auto scans = entry.second.results();
+        for (auto& scan : scans) {
+            scan.window_start_epoch_micros = entry.first;
+            batch.port_scans.push_back(std::move(scan));
+        }
+    }
     return batch;
 }
 

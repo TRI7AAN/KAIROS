@@ -81,11 +81,15 @@ public final class Ctu13PacketContractService {
             for (CppBridge.FlowFeatures flow : flows) {
                 sources.add(flow.sourceIp());
             }
+            long windowBucket = bucket;
             List<CppBridge.PortScanFeatures> scans =
                     (batch.portScans() == null ? List
                             .<CppBridge.PortScanFeatures>of()
                             : batch.portScans()).stream()
                     .filter(scan -> sources.contains(scan.sourceIp()))
+                    .filter(scan -> Math.floorDiv(
+                            scan.windowStartEpochMicros(), 1_000_000L)
+                            == windowBucket)
                     .toList();
             GraphSequence one = fromExtraction(
                     new CppBridge.ExtractionBatch(flows, scans),

@@ -75,7 +75,9 @@ std::string serialize(const networkwm::ExtractionBatch& batch) {
         }
         const auto& value = batch.port_scans[index];
         json << "{\"sourceIp\":\"" << json_escape(value.source_ip)
-             << "\",\"observedPackets\":" << value.observed_packets
+             << "\",\"windowStartEpochMicros\":"
+             << value.window_start_epoch_micros
+             << ",\"observedPackets\":" << value.observed_packets
              << ",\"uniqueDestinationPorts\":"
              << value.unique_destination_ports
              << ",\"sequentialTransitionRatio\":"

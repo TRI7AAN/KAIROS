@@ -1,36 +1,35 @@
 ---
 version: alpha
 name: "KAIROS"
-description: "An air-gapped incident dossier for explainable network-attack forecasting."
+description: "An operational command dashboard for explainable network-attack forecasting."
 colors:
-  ink: "#10243E"
-  ink-muted: "#52647A"
-  paper: "#F4F3ED"
-  surface: "#FFFEF8"
-  grid: "#CFD4D6"
-  lapis: "#2459D3"
-  alert: "#C43D2B"
-  warning: "#B66A16"
-  success: "#28735A"
-  focus: "#6B4EFF"
+  navy: "#172238"
+  navy-soft: "#23314D"
+  canvas: "#F3F6FB"
+  surface: "#FFFFFF"
+  text: "#26334D"
+  muted: "#73809A"
+  border: "#E3E9F2"
+  primary: "#536DFE"
+  teal: "#16A99A"
+  alert: "#E45B65"
+  warning: "#E99B2F"
+  success: "#1D9B6C"
+  focus: "#7158E2"
 typography:
-  display:
-    fontFamily: "Georgia, Cambria, Times New Roman, serif"
   body:
-    fontFamily: "Aptos, Segoe UI, Helvetica Neue, Arial, sans-serif"
-  utility:
-    fontFamily: "Arial Narrow, Roboto Condensed, Aptos Narrow, sans-serif"
+    fontFamily: "Segoe UI, Aptos, Helvetica Neue, Arial, sans-serif"
   mono:
     fontFamily: "Cascadia Mono, IBM Plex Mono, Consolas, monospace"
 rounded:
   DEFAULT: "0.375rem"
-  sm: "0.25rem"
-  md: "0.375rem"
-  lg: "0.75rem"
+  sm: "0.3125rem"
+  md: "0.5rem"
+  lg: "0.625rem"
 spacing:
   unit: "0.5rem"
   section-gap: "1.25rem"
-  page-max: "90rem"
+  page-max: "88.75rem"
 components:
   button: {}
   upload: {}
@@ -45,7 +44,7 @@ components:
 
 ### Creative North Star
 
-KAIROS should feel like an incident commander’s printed intelligence dossier laid over a live network plotting table: measured, legible, and evidence-first. It is a product surface, not a marketing site.
+KAIROS should feel like an incident commander’s operational console: measured, legible, calm under pressure, and evidence-first. Its information hierarchy borrows the proven sidebar, summary-card, chart, and table rhythm of DashboardKit while remaining unmistakably a predictive-security product rather than a reskinned sales dashboard.
 
 ### Product context and register
 
@@ -54,30 +53,30 @@ KAIROS should feel like an incident commander’s printed intelligence dossier l
 - **Locale(s) and language policy:** English UI; technical identifiers remain in their source schema.
 - **Usage scene:** Laptop or projected demo, often offline, with urgent interpretation and medium data density.
 - **Register:** Product dashboard.
-- **Memorable signature:** The forecast tape separates the current score from numbered future windows and overlays the predicted MITRE-stage sequence.
+- **Memorable signature:** The horizon instrument makes the calibrated 10/30/60-second future-risk trajectory visually dominant and keeps the current GNN-Transformer score in a subordinate diagnostic disclosure.
 - **Restraint:** Upload, errors, evidence tables, and narrative reading use conventional controls and stable layouts.
 - **Anti-references:** Avoid generic neon “hacker” dashboards, glassmorphism, decorative terminal noise, and unearned claims of causality.
 - **Token ownership/runtime mapping:** This file owns visual intent and exact tokens; `react-ui/src/styles.css` is the runtime CSS-variable adapter.
 
 ## Colors
 
-Paper and surface tokens create the dossier canvas. Ink carries structure; lapis is the model forecast; alert and warning are reserved for risk semantics; success identifies verified local/offline operation. Focus always uses the violet focus token and never relies on color alone. Charts repeat labels and markers so stage and threshold meaning are not color-only.
+The navy sidebar anchors the workspace; a cool canvas and white surfaces keep dense evidence readable. Indigo is reserved for forecast/action emphasis, teal for verified/local state, coral for elevated risk, and amber for caution. Focus always uses violet and never relies on color alone. Charts repeat labels and markers so stage and threshold meaning are not color-only.
 
 ## Typography
 
-Georgia is reserved for the product name and decisive result language. The body stack optimizes operational reading. Utility labels use a narrow system stack with tracked uppercase; numeric values and model artifacts use the mono stack with tabular figures. Headings use sentence case.
+The UI uses a restrained system sans stack for reliable offline rendering and a compact dashboard cadence. Numeric values and model artifacts use the mono stack with tabular figures. Utility labels are tracked uppercase; headings use sentence case.
 
 ## Layout
 
-The desktop layout uses a 90rem centered canvas, a compact masthead, and an asymmetric 5/7 workbench grid. Result panels reflow to one column below 62rem; upload actions stack below 42rem. The page scrolls naturally, while tables own horizontal overflow with a stable scrollbar gutter. Result geometry remains reserved during requests.
+The desktop layout uses a persistent 250px navigation sidebar and an 88.75rem centered workspace. Dashboard summaries use a four-card row; upload and model route use an asymmetric 2/3–1/3 grid. Below 56rem the sidebar becomes a compact top navigation and all analytical panels reflow to one column. The page scrolls naturally, while tables own horizontal overflow with a stable scrollbar gutter.
 
 ## Elevation & Depth
 
-Hierarchy comes from paper tones, rules, and offset ink shadows. Static panels use one restrained two-pixel offset; nested content is flat. No blur or translucent glass is used.
+Hierarchy comes from white surfaces, cool borders, and one restrained low-opacity shadow token. Nested content is flat. No blur, translucent glass, neon glow, or decorative terminal texture is used.
 
 ## Shapes
 
-Panels and controls use tight radii. The forecast plot may use a larger radius as the singular live instrument. Pills are reserved for status and MITRE stages, not general containers.
+Panels use 8px radii and controls use 5–6px radii. Pills are reserved for status and compact metadata, not general containers.
 
 ## Components
 
@@ -87,11 +86,11 @@ Interactive controls define hover, focus-visible, pressed, disabled, and busy st
 
 ### Buttons and actions
 
-The solid ink button is the sole primary action in its area. The sample action is outline-neutral. Busy actions keep their dimensions and expose `aria-busy`. Disabled controls use both reduced contrast and disabled semantics.
+The solid indigo button is the sole primary action in its area. The sample action is outline-neutral. Busy actions keep their dimensions and expose `aria-busy`. Disabled controls use both reduced contrast and disabled semantics.
 
 ### Navigation and data display
 
-The app has one dashboard route and no decorative navigation. Tables use native semantics, horizontal scrolling, stable headers, and an explicit empty state. Forecast stages appear in ordered windows.
+The app has one dashboard route with in-page landmark navigation. Desktop navigation is persistent; narrow navigation scrolls horizontally without hiding destinations. Tables use native semantics, horizontal scrolling, stable headers, and an explicit empty state. Forecast stages appear in ordered windows.
 
 ### Forms and overlays
 

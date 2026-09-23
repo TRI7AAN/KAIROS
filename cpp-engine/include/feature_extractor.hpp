@@ -49,6 +49,7 @@ struct PortScanConfig {
 
 struct PortScanFeatures {
     std::string source_ip;
+    std::uint64_t window_start_epoch_micros{};
     std::uint64_t observed_packets{};
     std::size_t unique_destination_ports{};
     double sequential_transition_ratio{};

@@ -106,7 +106,7 @@ function LiveDashboard() {
   const quality = predictions[predictions.length - 1]?.quality || latest?.quality || 'ok';
 
   return (
-    <section className="panel live-panel" aria-labelledby="live-title">
+    <section className="panel live-panel" id="live-capture" aria-labelledby="live-title">
       <div className="panel-heading">
         <div>
           <p className="eyebrow">Live capture / passive only</p>
@@ -115,10 +115,10 @@ function LiveDashboard() {
         <QualityBadge quality={quality} detail={latest?.qualityDetail} />
       </div>
 
-      <form className="live-controls" onSubmit={start}>
-        <label>
+      <form className="live-controls" onSubmit={start} noValidate>
+        <label htmlFor="live-interface">
           Interface
-          <select value={interfaceName} onChange={(event) => setInterfaceName(event.target.value)} disabled={busy || !!session?.state?.match(/CAPTURING|STARTING/)}>
+          <select id="live-interface" value={interfaceName} onChange={(event) => setInterfaceName(event.target.value)} disabled={busy || !!session?.state?.match(/CAPTURING|STARTING/)}>
             {interfaces.map((info) => (
               <option key={info.name} value={info.name}>
                 {info.name}{info.loopback ? ' (loopback)' : ''}
@@ -126,17 +126,17 @@ function LiveDashboard() {
             ))}
           </select>
         </label>
-        <label>
+        <label htmlFor="live-duration">
           Duration (s)
-          <input type="number" min="1" max="3600" value={durationSeconds} onChange={(event) => setDurationSeconds(event.target.value)} disabled={busy} />
+          <input id="live-duration" type="number" min="1" max="3600" value={durationSeconds} onChange={(event) => setDurationSeconds(event.target.value)} disabled={busy} />
         </label>
-        <label>
+        <label htmlFor="live-packet-limit">
           Packet limit
-          <input type="number" min="1" max="1000000" placeholder="optional" value={packetLimit} onChange={(event) => setPacketLimit(event.target.value)} disabled={busy} />
+          <input id="live-packet-limit" type="number" min="1" max="1000000" placeholder="optional" value={packetLimit} onChange={(event) => setPacketLimit(event.target.value)} disabled={busy} />
         </label>
-        <label className="live-filter">
+        <label className="live-filter" htmlFor="live-bpf-filter">
           BPF filter
-          <input type="text" placeholder="e.g. udp port 9999" value={bpfFilter} onChange={(event) => setBpfFilter(event.target.value)} disabled={busy} />
+          <input id="live-bpf-filter" type="text" placeholder="e.g. udp port 9999" value={bpfFilter} onChange={(event) => setBpfFilter(event.target.value)} disabled={busy} />
         </label>
         <div className="upload-actions">
           <button type="submit" className="button primary" disabled={busy || session?.state === 'CAPTURING'}>
@@ -165,14 +165,8 @@ function LiveDashboard() {
 
       {latest ? (
         <div className="result-grid live-results">
-          <ProbabilityTimeline prediction={{
-            probability: latest.probability,
-            rollout: { probabilities: latest.rollout?.probabilities || [], predictedStages: latest.rollout?.predictedStages || [] },
-          }} />
-          <StageAnnotations prediction={{
-            predictedStage: latest.predictedStage,
-            rollout: { predictedStages: latest.rollout?.predictedStages || [] },
-          }} />
+          <ProbabilityTimeline prediction={latest} />
+          <StageAnnotations prediction={latest} />
         </div>
       ) : (
         <p className="panel-note">Start a session to stream live windows, counters, and stage outlook over SSE.</p>

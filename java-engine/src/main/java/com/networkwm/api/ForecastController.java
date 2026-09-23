@@ -5,8 +5,10 @@ import com.networkwm.bridge.PythonMlClient.PredictionResponse;
 import com.networkwm.graph.GraphContractService.GraphSequence;
 import com.networkwm.narrative.NarrativeModeService;
 import com.networkwm.narrative.LocalNarrativeService.Narrative;
+import com.networkwm.ingestion.IngestionService.CsvFormatException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -68,22 +70,27 @@ public final class ForecastController {
     @PostMapping(
             path = "/upload",
             consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ForecastResponse forecastUpload(
+    public ResponseEntity<?> forecastUpload(
             @RequestParam("file") MultipartFile file,
             @RequestParam(value = "rolloutSteps", defaultValue = "3")
                     int rolloutSteps) {
         try {
             GraphSequence contract = uploads.fromUpload(file);
-            return forecast(new ForecastRequest(contract, rolloutSteps));
+            return ResponseEntity.ok(
+                    forecast(new ForecastRequest(contract, rolloutSteps)));
         } catch (IllegalArgumentException error) {
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST, error.getMessage(), error);
+            return ResponseEntity.badRequest().body(
+                    new UploadError(error.getMessage()));
+        } catch (CsvFormatException error) {
+            return ResponseEntity.unprocessableEntity().body(
+                    new UploadError(error.getMessage()));
         } catch (IOException error) {
-            throw new ResponseStatusException(
-                    HttpStatus.UNPROCESSABLE_ENTITY,
-                    "Unable to ingest uploaded traffic file",
-                    error);
+            return ResponseEntity.unprocessableEntity().body(
+                    new UploadError("Unable to ingest uploaded traffic file"));
         }
+    }
+
+    public record UploadError(String detail) {
     }
 
     public record ForecastRequest(

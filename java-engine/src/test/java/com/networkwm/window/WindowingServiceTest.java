@@ -97,7 +97,8 @@ class WindowingServiceTest {
         CppBridge.ExtractionBatch batch = new CppBridge.ExtractionBatch(
                 List.of(packet),
                 List.of(new CppBridge.PortScanFeatures(
-                        "10.0.0.9", 30, 25, 0.9, "sequential")));
+                        "10.0.0.9", 20_000_000L,
+                        30, 25, 0.9, "sequential")));
 
         List<WindowingService.TrafficWindow> windows =
                 new WindowingService().windowAndMerge(
