@@ -30,8 +30,8 @@ function StageAnnotations({ prediction }) {
     <section className="panel stage-panel" aria-labelledby="stage-title">
       <div className="panel-heading">
         <div>
-          <p className="eyebrow">Validated conditional stage outlook</p>
           <h2 id="stage-title">Stage coverage</h2>
+          <p className="panel-subtitle">Validated conditional stage outlook</p>
         </div>
       </div>
       <ol className="stage-track">

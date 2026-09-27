@@ -2,7 +2,7 @@
 
 ## Scope
 
-This contract covers the single-route KAIROS security dashboard. Product facts and model behavior come from `README.md`; visual intent and tokens come from `DESIGN.md`.
+This contract covers the KAIROS landing-to-dashboard experience. Product facts and model behavior come from `README.md`; visual intent and tokens come from `DESIGN.md`.
 
 ## Canonical UI Map
 
@@ -11,6 +11,7 @@ This contract covers the single-route KAIROS security dashboard. Product facts a
 | Select/Listbox | Native HTML select in `LiveDashboard` | This contract + supported browser behavior | native only; operating-system popup geometry is accepted | keyboard selection + browser open state |
 | Form | React component state in upload and live-capture forms | API contract in `react-ui/src/api/client.js` | traffic upload / passive live session | build + success/error/cancel browser flow |
 | Scrollbar | Global rules in `react-ui/src/styles.css` | `DESIGN.md` token mapping | stable-gutter table and narrow navigation geometry | computed style + overflow browser check |
+| Theme | Root `data-theme` set by `App.jsx` | operating-system preference, then persisted `kairos-theme` choice | matte dark / bright graphite | keyboard toggle + reload persistence + visual browser check |
 
 ## Workflow behavior
 
@@ -27,7 +28,11 @@ Errors are persistent inline alerts with a concrete recovery instruction. No bro
 
 ## Navigation and responsive behavior
 
-The dashboard uses in-page landmarks. Desktop navigation is persistent; below 900px it becomes a horizontally scrollable top navigation without hiding any destination. The document scrolls naturally and data tables own horizontal overflow.
+The root URL opens the landing page. `#dashboard` opens the operational console directly, its in-page forecast/evidence/live-capture anchors remain on that surface, and the dashboard brand returns to `#home`. Browser Back after entering the dashboard returns to the landing page.
+
+The dashboard uses a compact top navigation with in-page landmarks. Its primary reading order is traffic input, validated forecast, forecast evidence, then optional live capture. Live capture uses native disclosure semantics and remains collapsed until requested. Both route groups scroll naturally and data tables own horizontal overflow.
+
+The theme switch remains available at every viewport. Its label always names the destination mode, its icon is decorative, and changing appearance never changes forecast data or semantic status meaning.
 
 ## Accessibility
 
@@ -35,4 +40,4 @@ The target is WCAG 2.2 AA. Native semantics, visible focus, reduced-motion handl
 
 ## Route document title policy
 
-The single route sets `Security overview — KAIROS`. Loading and API errors remain states within this route and do not expose traffic identifiers in the browser title.
+The landing route sets `KAIROS — Predictive network defence`; the operational route sets `Attack forecast — KAIROS`. Loading and API errors remain states within the dashboard and never expose traffic identifiers in the browser title.

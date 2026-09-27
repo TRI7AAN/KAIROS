@@ -8,8 +8,8 @@ function NarrativePanel({ narrative }) {
     <section className="panel narrative-panel" aria-labelledby="briefing-title">
       <div className="panel-heading">
         <div>
-          <p className="eyebrow">Analyst briefing</p>
           <h2 id="briefing-title">What warrants attention</h2>
+          <p className="panel-subtitle">Analyst briefing</p>
         </div>
         <span className={online ? 'mode-badge online' : 'mode-badge offline'}>
           <span aria-hidden="true">{online ? '↗' : '●'}</span>

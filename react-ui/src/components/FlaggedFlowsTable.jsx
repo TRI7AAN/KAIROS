@@ -9,8 +9,8 @@ function FlaggedFlowsTable({ features = [] }) {
     <section className="panel evidence-panel" aria-labelledby="evidence-title">
       <div className="panel-heading">
         <div>
-          <p className="eyebrow">SHAP / ranked evidence</p>
           <h2 id="evidence-title">Forecast drivers</h2>
+          <p className="panel-subtitle">SHAP / ranked evidence</p>
         </div>
         <span className="count-mark">{features.length} signals</span>
       </div>
