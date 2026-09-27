@@ -1,18 +1,6 @@
 # KAIROS — Network Attack World Model
 
-KAIROS learns network-traffic state-transition dynamics — P(S_t+1 | S_t), the
-probability distribution over future network states given the current state —
-and forecasts attacker progression before compromise using K-step
-autoregressive rollout of the learned dynamics, instead of classifying the
-present. Current real scope: the static offline pipeline (file upload →
-windowing → graph build → world-model inference → explanation → analyst
-narrative → dashboard) is complete and verified end-to-end (Phases 0–63),
-offline by default, with the baseline F1 gap honestly open (see Benchmark
-Results). The passive live-capture tier (Phases 66–74, 76–77) is implemented
-and verified on loopback (see Roadmap table and `docs/phase-status.md`);
-authorized active probing (Phase 75) and the demo scenario (Phase 78) are
-not started — Stop Gate 1 was never reached, so no active-probe code path
-exists anywhere.
+KAIROS learns network-traffic state-transition dynamics P(S_t+1 | S_t), the probability distribution over future network states given the current state and forecasts attacker progression before compromise using K-step autoregressive rollout of the learned dynamics, instead of classifying the present. Current real scope: the static offline pipeline (file upload → windowing → graph build → world-model inference → explanation → analyst narrative → dashboard) is complete and verified end-to-end (Phases 0–63), offline by default, with the baseline F1 gap honestly open (see Benchmark Results). The passive live-capture tier (Phases 66–74, 76–77) is implemented and verified on loopback (see Roadmap table and `docs/phase-status.md`); authorized active probing (Phase 75) and the demo scenario (Phase 78) are not started — Stop Gate 1 was never reached, so no active-probe code path exists anywhere.
 
 ## Table of Contents
 
