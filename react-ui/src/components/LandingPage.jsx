@@ -168,7 +168,8 @@ function LandingPage({ onEnter }) {
       <section className="landing-hero" aria-labelledby="landing-title">
         <div className="landing-hero__copy">
           <div className="landing-hero__signal" aria-hidden="true"><span /> Predictive network defence</div>
-          <h1 id="landing-title">See the attack<span>before it arrives.</span></h1>
+          <h1>KAIROS</h1>
+          <h2 id="landing-title">See the attack<span> before it arrives.</span></h2>
           <p>KAIROS transforms ordered network traffic into calibrated 10, 30, and 60-second threat forecasts—locally, with evidence an analyst can verify.</p>
           <div className="landing-hero__actions">
             <button className="landing-primary-action" type="button" onClick={onEnter}>Open threat console <ArrowIcon /></button>

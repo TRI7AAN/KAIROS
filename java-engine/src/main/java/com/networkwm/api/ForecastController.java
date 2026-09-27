@@ -7,6 +7,7 @@ import com.networkwm.narrative.NarrativeModeService;
 import com.networkwm.narrative.LocalNarrativeService.Narrative;
 import com.networkwm.ingestion.IngestionService.CsvFormatException;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
@@ -78,6 +79,26 @@ public final class ForecastController {
             GraphSequence contract = uploads.fromUpload(file);
             return ResponseEntity.ok(
                     forecast(new ForecastRequest(contract, rolloutSteps)));
+        } catch (ResponseStatusException error) {
+            // forecast() already classified the failure (400 = bad traffic
+            // contract such as unexpected CSV columns; 502 = ML service
+            // down/broken). Preserve that status here so uploads report a
+            // 400 with the Python detail instead of a bare 502, and keep the
+            // UploadError body shape the dashboard expects.
+            HttpStatusCode status = error.getStatusCode();
+            String detail = error.getReason() != null
+                    ? error.getReason() : "Forecast failed";
+            Throwable cause = error.getCause();
+            if (cause != null && cause.getMessage() != null
+                    && !cause.getMessage().isBlank()
+                    && !detail.contains(cause.getMessage())) {
+                String causeMessage = cause.getMessage();
+                if (causeMessage.length() > 1_500) {
+                    causeMessage = causeMessage.substring(0, 1_500);
+                }
+                detail = detail + ": " + causeMessage;
+            }
+            return ResponseEntity.status(status).body(new UploadError(detail));
         } catch (IllegalArgumentException error) {
             return ResponseEntity.badRequest().body(
                     new UploadError(error.getMessage()));

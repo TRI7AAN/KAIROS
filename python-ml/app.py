@@ -148,8 +148,20 @@ class PredictionService:
             + list(TEMPORAL_FEATURE_NAMES)
         )
         if names != self.surrogate_feature_names:
+            expected = list(self.surrogate_feature_names)
+            missing = [name for name in expected if name not in names]
+            extra = [name for name in names if name not in expected]
             raise GraphContractError(
-                "contract feature schema does not match the explanation artifact")
+                "contract feature schema does not match the explanation "
+                f"artifact (got {len(names)} features, expected "
+                f"{len(expected)}; missing {len(missing)}, extra "
+                f"{len(extra)}). Missing examples: {missing[:5]}. Extra "
+                f"examples: {extra[:5]}. The CSV must use the exact "
+                "CICFlowMeter column set the model was trained on "
+                "(same columns as react-ui/public/sample-attack.csv); "
+                "renamed, added, or dropped columns change the aggregated "
+                "edge schema and cannot be scored."
+            )
 
         model = self._model(
             len(sequence.node_feature_names), len(sequence.edge_feature_names))
@@ -305,7 +317,17 @@ def create_app(prediction_service: PredictionService | None = None,
             return jsonify({"error": str(error)}), 503
         except (GraphContractError, ValueError, TypeError) as error:
             return jsonify({"error": str(error)}), 400
+        except Exception as error:  # never leak an HTML 500 to Java
+            app.logger.exception("unhandled /predict failure")
+            return jsonify({
+                "error": "internal inference failure: "
+                         f"{type(error).__name__}: {error}"
+            }), 500
         return jsonify(result)
+
+    @app.errorhandler(500)
+    def internal_error(error):
+        return jsonify({"error": f"internal inference failure: {error}"}), 500
 
     return app
 

@@ -125,8 +125,18 @@ export function openLiveEvents(sessionId, handlers) {
 
 export function explainApiError(error) {
   if (axios.isCancel(error)) return 'Analysis cancelled.';
-  const detail = error.response?.data?.detail || error.response?.data?.message;
-  if (detail) return detail;
+  const data = error.response?.data || {};
+  const detail = data.detail || data.message || data.error;
+  if (detail) {
+    // Python 400s forwarded by Java already name the missing/extra
+    // columns; keep that actionable text instead of a bare status code.
+    // A 502 here means the local ML service itself failed or timed out,
+    // not that the CSV was invalid.
+    if (error.response?.status === 502) {
+      return `${detail} (Local ML service error — keep both services running and retry; larger files can take over a minute.)`;
+    }
+    return detail;
+  }
   if (error.code === 'ECONNABORTED') {
     return 'Analysis timed out. Keep the services running and try again.';
   }

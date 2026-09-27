@@ -84,6 +84,39 @@ class PythonMlClientTest {
         }
     }
 
+    @Test
+    void clientErrorMapsToIllegalArgumentNotGateway() throws Exception {
+        HttpServer server = server(400,
+                "{\"error\":\"contract feature schema does not match\"}",
+                new AtomicReference<>());
+        try {
+            Exception error = assertThrows(
+                    IllegalArgumentException.class,
+                    () -> client(server).predict(new GraphSequence(
+                            "kairos.sequence.v1", List.of(), List.of(), List.of()),
+                            3));
+            assertTrue(error.getMessage().contains("HTTP 400"));
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void serverErrorMapsToIOExceptionForGateway() throws Exception {
+        HttpServer server = server(500, "{\"error\":\"boom\"}",
+                new AtomicReference<>());
+        try {
+            Exception error = assertThrows(
+                    java.io.IOException.class,
+                    () -> client(server).predict(new GraphSequence(
+                            "kairos.sequence.v1", List.of(), List.of(), List.of()),
+                            3));
+            assertTrue(error.getMessage().contains("HTTP 500"));
+        } finally {
+            server.stop(0);
+        }
+    }
+
     private static PythonMlClient client(HttpServer server) {
         return new PythonMlClient(
                 "http://127.0.0.1:" + server.getAddress().getPort(),

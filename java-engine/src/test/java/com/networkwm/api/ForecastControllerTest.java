@@ -120,8 +120,41 @@ class ForecastControllerTest {
     }
 
     @Test
-    void unsupportedUploadExtensionIsRejected() throws Exception {
-        HttpServer python = stubPython(200, VALID_PREDICTION);
+    void pythonContractRejectionSurfacesAsBadRequestWithDetail() throws Exception {
+        HttpServer python = stubPython(400,
+                "{\"error\":\"contract feature schema does not match\"}");
+        try {
+            ForecastController controller = controller(python);
+
+            var responseEntity = controller.forecastUpload(
+                    new BytesMultipartFile("traffic.csv", CSV.getBytes()), 3);
+
+            assertEquals(HttpStatus.BAD_REQUEST, responseEntity.getStatusCode());
+            assertTrue(((ForecastController.UploadError) responseEntity.getBody())
+                    .detail().contains("contract feature schema"));
+        } finally {
+            python.stop(0);
+        }
+    }
+
+    @Test
+    void pythonServerFailureOnUploadSurfacesAsBadGateway() throws Exception {
+        HttpServer python = stubPython(500, "{\"error\":\"boom\"}");
+        try {
+            ForecastController controller = controller(python);
+
+            var responseEntity = controller.forecastUpload(
+                    new BytesMultipartFile("traffic.csv", CSV.getBytes()), 3);
+
+            assertEquals(
+                    HttpStatus.BAD_GATEWAY, responseEntity.getStatusCode());
+        } finally {
+            python.stop(0);
+        }
+    }
+
+    @Test
+    void unsupportedUploadExtensionIsRejected() throws Exception {        HttpServer python = stubPython(200, VALID_PREDICTION);
         try {
             ForecastController controller = controller(python);
 

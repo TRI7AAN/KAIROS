@@ -35,10 +35,10 @@ public final class PythonMlClient {
         this(
                 configuredBaseUrl(),
                 new OkHttpClient.Builder()
-                        .connectTimeout(Duration.ofSeconds(2))
-                        .readTimeout(Duration.ofSeconds(10))
-                        .writeTimeout(Duration.ofSeconds(10))
-                        .callTimeout(Duration.ofSeconds(15))
+                        .connectTimeout(Duration.ofSeconds(5))
+                        .readTimeout(Duration.ofSeconds(60))
+                        .writeTimeout(Duration.ofSeconds(30))
+                        .callTimeout(Duration.ofSeconds(120))
                         .build(),
                 new ObjectMapper()
                         .registerModule(new JavaTimeModule())
@@ -86,6 +86,15 @@ public final class PythonMlClient {
             if (!response.isSuccessful()) {
                 String safeBody = body.substring(
                         0, Math.min(body.length(), MAX_ERROR_BODY_CHARS));
+                // The Python service uses 400 for client-side contract problems
+                // (wrong CSV columns, empty windows, bad rolloutSteps). Those
+                // must surface as 400, not 502: a 502 means the ML service
+                // itself is down or broken, not that the upload was invalid.
+                if (response.code() >= 400 && response.code() < 500) {
+                    throw new IllegalArgumentException(
+                            "Python ML service rejected the traffic contract (HTTP "
+                                    + response.code() + "): " + safeBody);
+                }
                 throw new IOException(
                         "Python ML service returned HTTP "
                                 + response.code() + ": " + safeBody);
